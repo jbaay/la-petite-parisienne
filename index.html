@@ -1,397 +1,2533 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="La Petite Parisienne">
-  <meta name="theme-color" content="#f43f5e">
-  <title>La Petite Parisienne</title>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:#f9fafb;min-height:100vh;-webkit-tap-highlight-color:transparent}
-    input,textarea,select{font-size:16px;font-family:inherit;border:none;background:#f3f4f6;padding:12px 16px;border-radius:12px;width:100%;outline:none}
-    input:focus,textarea:focus,select:focus{box-shadow:0 0 0 2px #fecdd3}
-    button{background:none;border:none;cursor:pointer;font-family:inherit;font-size:inherit}
-    button:active{transform:scale(0.97);opacity:0.9}
-    .app{min-height:100vh;display:flex;flex-direction:column;padding-bottom:90px}
-    .card{background:white;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
-    .header{background:white;padding:16px 20px;border-bottom:1px solid #e5e7eb}
-    .tab-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);border-top:1px solid #e5e7eb;padding:8px 0 20px;display:flex;justify-content:space-around;align-items:center;z-index:100}
-    .tab-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 12px;color:#9ca3af}
-    .tab-btn.active{color:#f43f5e}
-    .tab-btn svg{width:24px;height:24px}
-    .tab-btn span{font-size:10px;font-weight:500}
-    .add-btn{width:56px;height:56px;background:linear-gradient(135deg,#f43f5e,#ec4899);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-28px;box-shadow:0 4px 12px rgba(244,63,94,0.4)}
-    .add-btn svg{width:28px;height:28px;stroke:white}
-    .status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
-    .status-pendiente{background:#fef2f2;color:#dc2626}
-    .status-anticipo{background:#fffbeb;color:#d97706}
-    .status-pagado{background:#f0fdf4;color:#16a34a}
-    .event-card{background:white;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
-    .sync-indicator{display:flex;align-items:center;gap:6px;font-size:12px;color:#9ca3af}
-    .sync-indicator.synced{color:#22c55e}
-    .sync-indicator.syncing{color:#f59e0b}
-    .sync-indicator.error{color:#ef4444}
-    .sync-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
-    .filter-btn{padding:8px 16px;border-radius:20px;font-size:14px;font-weight:500;background:#f3f4f6;color:#4b5563;white-space:nowrap}
-    .filter-btn.active{background:#111827;color:white}
-    .service-btn{padding:12px;border-radius:12px;display:flex;align-items:center;gap:8px;background:#f9fafb;border:2px solid transparent}
-    .service-btn.active{background:#fff1f2;border-color:#fda4af}
-    .expense-row{display:flex;align-items:center;gap:8px;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:8px}
-    .stat-card{background:white;border-radius:16px;padding:16px;text-align:center}
-    .chart-container{position:relative;height:200px}
-    .whatsapp-btn{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:white;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px;text-decoration:none}
-    .call-btn{display:inline-flex;align-items:center;gap:8px;background:#3b82f6;color:white;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px;text-decoration:none}
-    .toggle{width:48px;height:28px;border-radius:14px;background:#d1d5db;position:relative}
-    .toggle.active{background:#22c55e}
-    .toggle-knob{position:absolute;top:4px;left:4px;width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:transform 0.2s}
-    .toggle.active .toggle-knob{transform:translateX(20px)}
-    .calendar-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;font-size:14px;font-weight:500;color:#374151}
-    .calendar-day.today{background:#f43f5e;color:white}
-    .calendar-day.has-events{background:#f3f4f6}
-    .calendar-dot{width:6px;height:6px;border-radius:50%;margin-top:2px}
-    .loading{position:fixed;inset:0;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;z-index:1000}
-    .spinner{width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#f43f5e;border-radius:50%;animation:spin 0.8s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .login-container{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#fff1f2,#fef3c7)}
-    .login-box{background:white;border-radius:24px;padding:32px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,0.1)}
-    .login-logo{font-size:48px;text-align:center;margin-bottom:8px}
-    .login-title{font-size:24px;font-weight:700;text-align:center;color:#111827;margin-bottom:4px}
-    .login-subtitle{font-size:14px;color:#6b7280;text-align:center;margin-bottom:24px}
-    .login-input{margin-bottom:16px}
-    .login-btn{width:100%;padding:14px;background:linear-gradient(135deg,#f43f5e,#ec4899);color:white;border-radius:12px;font-weight:600;font-size:16px;margin-top:8px}
-    .login-error{background:#fef2f2;color:#dc2626;padding:12px;border-radius:12px;font-size:14px;margin-bottom:16px;text-align:center}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dulces Momentos">
+    <meta name="theme-color" content="#d4a574">
+    <title>Dulces Momentos - Gestión de Eventos</title>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d4a574;
+            --primary-dark: #b8956a;
+            --primary-light: #e8c9a8;
+            --secondary: #8b7355;
+            --accent: #c9a86c;
+            --bg-cream: #faf6f1;
+            --bg-white: #ffffff;
+            --text-dark: #3d3d3d;
+            --text-medium: #6b6b6b;
+            --text-light: #9a9a9a;
+            --success: #7cb87c;
+            --warning: #e8b86d;
+            --danger: #d47474;
+            --border: #e8e2db;
+            --shadow: rgba(139, 115, 85, 0.1);
+            --shadow-strong: rgba(139, 115, 85, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg-cream);
+            color: var(--text-dark);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px var(--shadow-strong);
+        }
+
+        .header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .header-subtitle {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            margin-top: 4px;
+            font-weight: 300;
+        }
+
+        /* Navigation Buttons */
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            padding: 15px 20px;
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .nav-btn {
+            flex-shrink: 0;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 25px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-btn.primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .nav-btn.primary:hover, .nav-btn.primary:active {
+            background: var(--primary-dark);
+            transform: scale(0.98);
+        }
+
+        .nav-btn.secondary {
+            background: var(--bg-cream);
+            color: var(--text-dark);
+            border: 1px solid var(--border);
+        }
+
+        .nav-btn.secondary:hover, .nav-btn.secondary:active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+
+        .nav-btn.back {
+            background: linear-gradient(135deg, var(--secondary) 0%, #6b5a46 100%);
+            color: white;
+        }
+
+        .nav-btn.back:hover, .nav-btn.back:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            padding-bottom: 100px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-white);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 15px var(--shadow);
+            border: 1px solid var(--border);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:active {
+            transform: scale(0.99);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            color: var(--text-dark);
+        }
+
+        .card-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-pending {
+            background: var(--warning);
+            color: white;
+        }
+
+        .badge-paid {
+            background: var(--success);
+            color: white;
+        }
+
+        .badge-partial {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-medium);
+            margin-bottom: 8px;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            color: var(--text-dark);
+            background: var(--bg-white);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.15);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Services Grid */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .service-card {
+            background: var(--bg-white);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .service-card:hover, .service-card:active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .service-card.selected {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary-light) 0%, rgba(212, 165, 116, 0.2) 100%);
+            box-shadow: 0 4px 15px var(--shadow);
+        }
+
+        .service-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        /* Amount Display */
+        .amount-display {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .amount-label {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .amount-value {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        /* Payment Section */
+        .payment-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .payment-row:last-child {
+            border-bottom: none;
+        }
+
+        .payment-label {
+            color: var(--text-medium);
+            font-size: 0.95rem;
+        }
+
+        .payment-value {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .payment-value.positive {
+            color: var(--success);
+        }
+
+        .payment-value.negative {
+            color: var(--danger);
+        }
+
+        /* RESICO Section */
+        .resico-card {
+            background: linear-gradient(135deg, #f0f4e8 0%, #e8f0e0 100%);
+            border: 2px solid #c5d4b5;
+        }
+
+        .resico-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .resico-badge {
+            background: #7cb87c;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .resico-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+        }
+
+        .resico-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .resico-item {
+            text-align: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 12px;
+        }
+
+        .resico-item-label {
+            font-size: 0.75rem;
+            color: var(--text-medium);
+            margin-bottom: 4px;
+        }
+
+        .resico-item-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .resico-item-value.tax {
+            color: var(--danger);
+        }
+
+        .resico-item-value.net {
+            color: var(--success);
+        }
+
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px var(--shadow);
+        }
+
+        .btn-primary:hover, .btn-primary:active {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--shadow-strong);
+        }
+
+        .btn-secondary {
+            background: var(--bg-cream);
+            color: var(--text-dark);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover, .btn-secondary:active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #5a9a5a 100%);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #b85a5a 100%);
+            color: white;
+        }
+
+        .btn-whatsapp {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+        }
+
+        /* Event List */
+        .event-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            background: var(--bg-white);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .event-item:hover, .event-item:active {
+            border-color: var(--primary);
+            box-shadow: 0 4px 15px var(--shadow);
+        }
+
+        .event-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--primary-light);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-right: 15px;
+        }
+
+        .event-details {
+            flex: 1;
+        }
+
+        .event-name {
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .event-date {
+            font-size: 0.85rem;
+            color: var(--text-medium);
+        }
+
+        .event-amount {
+            text-align: right;
+        }
+
+        .event-total {
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .event-status {
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        /* Stats Dashboard */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--bg-white);
+            border-radius: 16px;
+            padding: 18px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .stat-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-medium);
+            margin-top: 4px;
+        }
+
+        /* Menu Principal - Services */
+        .menu-section {
+            margin-bottom: 25px;
+        }
+
+        .menu-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            color: var(--text-dark);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .menu-item {
+            background: var(--bg-white);
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            padding: 25px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .menu-item:hover, .menu-item:active {
+            border-color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px var(--shadow);
+        }
+
+        .menu-item-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+        }
+
+        .menu-item-title {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-dark);
+            margin-bottom: 5px;
+        }
+
+        .menu-item-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-medium);
+        }
+
+        /* Commission Input */
+        .commission-group {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .commission-group .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .commission-rate {
+            width: 80px;
+            text-align: center;
+        }
+
+        /* Hidden Sections */
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsive */
+        @media (min-width: 600px) {
+            .services-grid, .menu-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        /* Delete button */
+        .delete-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: #b85a5a;
+            transform: scale(1.1);
+        }
+
+        /* Expense list item */
+        .expense-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 15px;
+            background: var(--bg-cream);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .expense-info {
+            flex: 1;
+        }
+
+        .expense-desc {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .expense-amount {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--bg-cream);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            border: none;
+            background: transparent;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-medium);
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: var(--bg-white);
+            color: var(--primary-dark);
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        /* Month selector */
+        .month-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .month-nav {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: var(--bg-white);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: var(--text-dark);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .month-nav:hover {
+            background: var(--primary-light);
+        }
+
+        .month-display {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            color: var(--text-dark);
+            min-width: 180px;
+            text-align: center;
+        }
+
+        /* Toggle switch */
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: var(--bg-cream);
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
+        .toggle-label {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 28px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--border);
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background-color: var(--primary);
+        }
+
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Info box */
+        .info-box {
+            background: #e8f4fd;
+            border: 1px solid #b8d4e8;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #2c5282;
+        }
+
+        .info-box-icon {
+            margin-right: 8px;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-cream);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-logo {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Login Screen */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--bg-cream) 0%, var(--primary-light) 100%);
+        }
+
+        .login-box {
+            background: var(--bg-white);
+            border-radius: 24px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 10px 40px var(--shadow-strong);
+        }
+
+        .login-logo-container {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .login-logo-icon {
+            font-size: 4rem;
+            margin-bottom: 12px;
+        }
+
+        .login-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .login-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-medium);
+        }
+
+        .login-form {
+            margin-top: 24px;
+        }
+
+        .login-input-group {
+            margin-bottom: 16px;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            color: var(--text-dark);
+            background: var(--bg-white);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .login-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.15);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+        }
+
+        .login-btn:hover, .login-btn:active {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--shadow-strong);
+        }
+
+        .login-error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            text-align: center;
+            display: none;
+        }
+
+        .login-error.show {
+            display: block;
+        }
+
+        /* Sync indicator */
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+
+        .sync-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.9;
+        }
+
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        .sync-dot.syncing {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        .sync-dot.error {
+            background: #ef4444;
+        }
+
+        /* Hide app initially */
+        .app-container {
+            display: none;
+        }
+
+        .app-container.visible {
+            display: block;
+        }
+    </style>
 </head>
 <body>
-<div id="app"></div>
-<script>
-firebase.initializeApp({
-  apiKey:"AIzaSyDueowWpJEKAuoYKrsS0ddRelxuspIfhTA",
-  authDomain:"la-petite-parisienne.firebaseapp.com",
-  projectId:"la-petite-parisienne",
-  storageBucket:"la-petite-parisienne.firebasestorage.app",
-  messagingSenderId:"377979404609",
-  appId:"1:377979404609:web:7b32a282f8201fdface1c0"
-});
-const auth=firebase.auth();
-const db=firebase.firestore();
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-logo">🎂</div>
+        <div class="loading-spinner"></div>
+    </div>
 
-const SVC=[{id:'pastel',label:'Pastel',icon:'🎂'},{id:'mesa_dulces',label:'Mesa Dulces',icon:'🍬'},{id:'postres',label:'Postres',icon:'🧁'},{id:'quesos',label:'Quesos',icon:'🧀'},{id:'otro',label:'Otro',icon:'✨'}];
-const PAY=[{id:'pendiente',label:'Pendiente'},{id:'anticipo',label:'Anticipo'},{id:'pagado',label:'Pagado'}];
-const EXP=[{id:'ingredientes',icon:'🥚'},{id:'transporte',icon:'🚗'},{id:'personal',icon:'👨‍🍳'},{id:'alquiler',icon:'🍽️'},{id:'otro',icon:'📦'}];
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container" style="display: none;">
+        <div class="login-box">
+            <div class="login-logo-container">
+                <div class="login-logo-icon">🎂</div>
+                <h1 class="login-title">Dulces Momentos</h1>
+                <p class="login-subtitle">Inicia sesión para continuar</p>
+            </div>
+            <div class="login-form">
+                <div id="loginError" class="login-error"></div>
+                <div class="login-input-group">
+                    <input type="email" id="loginEmail" class="login-input" placeholder="Email">
+                </div>
+                <div class="login-input-group">
+                    <input type="password" id="loginPassword" class="login-input" placeholder="Contraseña" onkeypress="if(event.key==='Enter')login()">
+                </div>
+                <button onclick="login()" class="login-btn">Entrar</button>
+            </div>
+        </div>
+    </div>
 
-let S={user:null,authLoading:true,events:[],view:'home',month:new Date(),selected:null,editing:null,search:'',filter:'all',sync:'synced',loading:false,form:null,reportMonth:new Date().getMonth(),reportYear:new Date().getFullYear()};
-let chart=null;
+    <!-- Main App Container -->
+    <div id="appContainer" class="app-container">
+    <header class="header">
+        <div class="header-top">
+            <span id="headerUser">👤</span>
+            <div class="sync-indicator">
+                <div id="syncDot" class="sync-dot"></div>
+                <span id="syncText">Guardado ☁️</span>
+            </div>
+        </div>
+        <h1>🎂 Dulces Momentos</h1>
+        <p class="header-subtitle">Gestión de Eventos y Catering</p>
+        <button onclick="logout()" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer;">Salir</button>
+    </header>
 
-const newForm=()=>({clientName:'',clientPhone:'',clientEmail:'',eventDate:'',eventTime:'',location:'',weddingPlanner:'',plannerCommission:10,services:[],totalAmount:'',depositAmount:'',paymentStatus:'pendiente',facturaEmitida:false,rfcCliente:'',expenses:[],notes:''});
-S.form=newForm();
+    <!-- Navigation -->
+    <nav class="nav-buttons" id="navButtons">
+        <button class="nav-btn back" id="backToMenuBtn" style="display: none;" onclick="goToMainMenu()">
+            ← Menú
+        </button>
+        <button class="nav-btn primary" onclick="showSection('newEvent')">
+            ➕ Nuevo Evento
+        </button>
+        <button class="nav-btn secondary" onclick="showSection('events')">
+            📋 Eventos
+        </button>
+        <button class="nav-btn secondary" onclick="showSection('dashboard')">
+            📊 Dashboard
+        </button>
+        <button class="nav-btn secondary" onclick="showSection('expenses')">
+            💸 Gastos
+        </button>
+    </nav>
 
-auth.onAuthStateChanged(u=>{S.user=u;S.authLoading=false;if(u)loadEvents();else{S.events=[];render();}});
+    <main class="main-content">
+        <!-- SECTION: Menu Principal -->
+        <section id="mainMenu" class="section active">
+            <div class="menu-section">
+                <h2 class="menu-title">📅 Acciones Rápidas</h2>
+                <div class="menu-grid">
+                    <div class="menu-item" onclick="showSection('newEvent')">
+                        <div class="menu-item-icon">✨</div>
+                        <div class="menu-item-title">Nuevo Evento</div>
+                        <div class="menu-item-subtitle">Crear cotización</div>
+                    </div>
+                    <div class="menu-item" onclick="showSection('events')">
+                        <div class="menu-item-icon">📋</div>
+                        <div class="menu-item-title">Mis Eventos</div>
+                        <div class="menu-item-subtitle">Ver y gestionar</div>
+                    </div>
+                    <div class="menu-item" onclick="showSection('dashboard')">
+                        <div class="menu-item-icon">📊</div>
+                        <div class="menu-item-title">Dashboard</div>
+                        <div class="menu-item-subtitle">Estadísticas</div>
+                    </div>
+                    <div class="menu-item" onclick="showSection('expenses')">
+                        <div class="menu-item-icon">💸</div>
+                        <div class="menu-item-title">Gastos</div>
+                        <div class="menu-item-subtitle">Control mensual</div>
+                    </div>
+                </div>
+            </div>
 
-async function login(){
-  const email=document.getElementById('lemail').value;
-  const pass=document.getElementById('lpass').value;
-  try{await auth.signInWithEmailAndPassword(email,pass);}
-  catch(e){document.getElementById('lerror').textContent=e.code.includes('invalid')?'Email o contraseña incorrectos':'Error de conexión';document.getElementById('lerror').style.display='block';}
-}
-function logout(){if(confirm('¿Cerrar sesión?'))auth.signOut();}
+            <div class="menu-section">
+                <h2 class="menu-title">🎂 Nuestros Servicios</h2>
+                <div class="menu-grid">
+                    <div class="menu-item" onclick="showServiceForm('pastel')">
+                        <div class="menu-item-icon">🎂</div>
+                        <div class="menu-item-title">Pastel</div>
+                        <div class="menu-item-subtitle">Bodas y eventos</div>
+                    </div>
+                    <div class="menu-item" onclick="showServiceForm('mesa_dulces')">
+                        <div class="menu-item-icon">🍬</div>
+                        <div class="menu-item-title">Mesa de Dulces</div>
+                        <div class="menu-item-subtitle">Candy bar</div>
+                    </div>
+                    <div class="menu-item" onclick="showServiceForm('postres')">
+                        <div class="menu-item-icon">🧁</div>
+                        <div class="menu-item-title">Postres</div>
+                        <div class="menu-item-subtitle">Cupcakes y más</div>
+                    </div>
+                    <div class="menu-item" onclick="showServiceForm('quesos')">
+                        <div class="menu-item-icon">🧀</div>
+                        <div class="menu-item-title">Mesa de Quesos</div>
+                        <div class="menu-item-subtitle">Gourmet</div>
+                    </div>
+                </div>
+            </div>
 
-async function loadEvents(){
-  S.loading=true;S.sync='syncing';render();
-  try{const snap=await db.collection('events').orderBy('eventDate','asc').get();S.events=snap.docs.map(d=>({id:d.id,...d.data()}));S.sync='synced';}
-  catch(e){S.sync='error';const l=localStorage.getItem('lpp');if(l)S.events=JSON.parse(l);}
-  S.loading=false;render();
-}
+            <!-- Quick Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📈 Resumen del Mes</h3>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-value" id="quickEventCount">0</div>
+                        <div class="stat-label">Eventos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-value" id="quickRevenue">$0</div>
+                        <div class="stat-label">Ingresos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💸</div>
+                        <div class="stat-value" id="quickExpenses">$0</div>
+                        <div class="stat-label">Gastos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-value" id="quickNet">$0</div>
+                        <div class="stat-label">Neto</div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-async function saveEvent(data){
-  S.sync='syncing';
-  try{
-    if(data.id){await db.collection('events').doc(data.id).set(data);}
-    else{const ref=await db.collection('events').add(data);data.id=ref.id;}
-    const i=S.events.findIndex(e=>e.id===data.id);
-    if(i>=0)S.events[i]=data;else S.events.push(data);
-    localStorage.setItem('lpp',JSON.stringify(S.events));
-    S.sync='synced';
-  }catch(e){S.sync='error';}
-  render();
-}
+        <!-- SECTION: Nuevo Evento -->
+        <section id="newEvent" class="section">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">✨ Nuevo Evento</h3>
+                </div>
 
-async function deleteEvent(id){
-  S.sync='syncing';
-  try{await db.collection('events').doc(id).delete();S.events=S.events.filter(e=>e.id!==id);localStorage.setItem('lpp',JSON.stringify(S.events));S.sync='synced';}
-  catch(e){S.sync='error';}
-  render();
-}
+                <div class="form-group">
+                    <label class="form-label">Nombre del Cliente</label>
+                    <input type="text" class="form-input" id="clientName" placeholder="Nombre completo">
+                </div>
 
-const fmt=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n||0);
-const fmtD=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'}):'';
-const fmtDL=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):'';
-const comm=(t,p)=>(parseFloat(t)||0)*(parseFloat(p)||0)/100;
-const expT=ex=>(ex||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-const profit=ev=>(ev.totalAmount||0)-comm(ev.totalAmount,ev.plannerCommission)-expT(ev.expenses);
+                <div class="form-group">
+                    <label class="form-label">WhatsApp</label>
+                    <input type="tel" class="form-input" id="clientPhone" placeholder="+52 777 123 4567">
+                </div>
 
-function setView(v){S.view=v;render();if(v==='dashboard')setTimeout(renderChart,100);}
+                <div class="form-group">
+                    <label class="form-label">Fecha del Evento</label>
+                    <input type="date" class="form-input" id="eventDate">
+                </div>
 
-function getF(id){const el=document.getElementById(id);return el?el.value:'';}
+                <div class="form-group">
+                    <label class="form-label">Lugar</label>
+                    <select class="form-select" id="eventVenue">
+                        <option value="">Seleccionar lugar...</option>
+                        <option value="Finca Paraíso">Finca Paraíso</option>
+                        <option value="Hacienda de Cortés">Hacienda de Cortés</option>
+                        <option value="Jardín Borda">Jardín Borda</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
 
-function submitForm(){
-  const f={
-    clientName:getF('fName'),clientPhone:getF('fPhone'),clientEmail:getF('fEmail'),
-    eventDate:getF('fDate'),eventTime:getF('fTime'),location:getF('fLoc'),
-    weddingPlanner:getF('fPlanner'),plannerCommission:parseFloat(getF('fComm'))||10,
-    services:S.form.services,totalAmount:parseFloat(getF('fTotal'))||0,depositAmount:parseFloat(getF('fDeposit'))||0,
-    paymentStatus:S.form.paymentStatus,facturaEmitida:S.form.facturaEmitida,rfcCliente:getF('fRfc'),
-    expenses:S.form.expenses,notes:getF('fNotes'),
-    createdAt:S.editing?S.editing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
-  };
-  if(!f.clientName||!f.eventDate||!f.totalAmount){alert('Completa los campos requeridos');return;}
-  if(S.editing)f.id=S.editing.id;
-  saveEvent(f);
-  S.form=newForm();S.editing=null;S.view='home';render();
-}
+                <div class="form-group" id="otherVenueGroup" style="display: none;">
+                    <label class="form-label">Especificar Lugar</label>
+                    <input type="text" class="form-input" id="otherVenue" placeholder="Nombre del lugar">
+                </div>
 
-function editEv(ev){S.form={...ev,expenses:ev.expenses||[]};S.editing=ev;S.view='form';render();}
-function delEv(id){if(confirm('¿Eliminar?')){deleteEvent(id);S.selected=null;S.view='home';render();}}
-function toggleSvc(id){const i=S.form.services.indexOf(id);if(i>=0)S.form.services.splice(i,1);else S.form.services.push(id);render();}
-function setPay(p){S.form.paymentStatus=p;render();}
-function addExp(){S.form.expenses.push({category:'ingredientes',description:'',amount:''});render();}
-function rmExp(i){S.form.expenses.splice(i,1);render();}
-function setExp(i,k,v){S.form.expenses[i][k]=v;}
-function toggleFac(){S.form.facturaEmitida=!S.form.facturaEmitida;render();}
-async function markFac(id){const ev=S.events.find(e=>e.id===id);if(ev){ev.facturaEmitida=true;await saveEvent(ev);S.selected=ev;}}
+                <div class="form-group">
+                    <label class="form-label">Número de Invitados</label>
+                    <input type="number" class="form-input" id="guestCount" placeholder="150">
+                </div>
+            </div>
 
-function share(){
-  const up=S.events.filter(e=>new Date(e.eventDate)>=new Date()).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate)).slice(0,10);
-  let m='🎂 LA PETITE PARISIENNE\n━━━━━━━━━━━━━━\n\n';
-  up.forEach(e=>{m+=(e.paymentStatus==='pagado'?'✅':e.paymentStatus==='anticipo'?'🟡':'🔴')+' '+fmtD(e.eventDate)+'\n   '+e.clientName+'\n   📍 '+e.location+'\n   💰 '+fmt(e.totalAmount)+'\n\n';});
-  window.open('https://wa.me/?text='+encodeURIComponent(m),'_blank');
-}
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🎂 Servicios</h3>
+                </div>
+                
+                <div class="services-grid" id="servicesGrid">
+                    <div class="service-card" data-service="pastel" onclick="toggleService(this)">
+                        <div class="service-icon">🎂</div>
+                        <div class="service-name">Pastel</div>
+                    </div>
+                    <div class="service-card" data-service="mesa_dulces" onclick="toggleService(this)">
+                        <div class="service-icon">🍬</div>
+                        <div class="service-name">Mesa Dulces</div>
+                    </div>
+                    <div class="service-card" data-service="postres" onclick="toggleService(this)">
+                        <div class="service-icon">🧁</div>
+                        <div class="service-name">Postres</div>
+                    </div>
+                    <div class="service-card" data-service="quesos" onclick="toggleService(this)">
+                        <div class="service-icon">🧀</div>
+                        <div class="service-name">Quesos</div>
+                    </div>
+                    <div class="service-card" data-service="bebidas" onclick="toggleService(this)">
+                        <div class="service-icon">🥂</div>
+                        <div class="service-name">Bebidas</div>
+                    </div>
+                    <div class="service-card" data-service="otro" onclick="toggleService(this)">
+                        <div class="service-icon">📦</div>
+                        <div class="service-name">Otro</div>
+                    </div>
+                </div>
 
-const IC={
-  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
-  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
-  cog:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9c.223.39.347.822.36 1.27V10a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>',
-  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
-  phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
-  wa:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>',
-  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
-  dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
-  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
-};
+                <!-- Service Details (shown when services selected) -->
+                <div id="serviceDetails"></div>
+            </div>
 
-function rLogin(){
-  return '<div class="login-container"><div class="login-box"><div class="login-logo">🥐</div><h1 class="login-title">La Petite Parisienne</h1><p class="login-subtitle">Inicia sesión para continuar</p><div id="lerror" class="login-error" style="display:none"></div><div class="login-input"><input type="email" id="lemail" placeholder="Email"></div><div class="login-input"><input type="password" id="lpass" placeholder="Contraseña" onkeypress="if(event.key===\'Enter\')login()"></div><button onclick="login()" class="login-btn">Entrar</button></div></div>';
-}
+            <!-- Pricing -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">💰 Precio y Comisiones</h3>
+                </div>
 
-function rTabs(){
-  return '<div class="tab-bar"><button onclick="setView(\'home\')" class="tab-btn '+(S.view==='home'?'active':'')+'">'+IC.home+'<span>Inicio</span></button><button onclick="setView(\'calendar\')" class="tab-btn '+(S.view==='calendar'?'active':'')+'">'+IC.cal+'<span>Calendario</span></button><button onclick="S.form=newForm();S.editing=null;setView(\'form\')" class="add-btn">'+IC.plus+'</button><button onclick="setView(\'dashboard\')" class="tab-btn '+(S.view==='dashboard'?'active':'')+'">'+IC.chart+'<span>Dashboard</span></button><button onclick="setView(\'settings\')" class="tab-btn '+(S.view==='settings'?'active':'')+'">'+IC.cog+'<span>Ajustes</span></button></div>';
-}
+                <div class="form-group">
+                    <label class="form-label">Precio Total del Evento</label>
+                    <input type="number" class="form-input" id="totalPrice" placeholder="25000" oninput="calculatePayments()">
+                </div>
 
-function rHome(){
-  const evs=S.events.filter(e=>{
-    const ms=(e.clientName||'').toLowerCase().includes(S.search.toLowerCase())||(e.location||'').toLowerCase().includes(S.search.toLowerCase());
-    return ms&&(S.filter==='all'||e.paymentStatus===S.filter);
-  }).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
-  const tot=S.events.reduce((s,e)=>s+(e.totalAmount||0),0);
-  const pend=S.events.filter(e=>e.paymentStatus!=='pagado').reduce((s,e)=>s+((e.totalAmount||0)-(e.depositAmount||0)),0);
-  
-  let h='<div class="header"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:#6b7280">👤 '+S.user.email.split('@')[0]+'</span><button onclick="logout()" style="font-size:12px;color:#ef4444">Cerrar sesión</button></div><h1 style="font-size:24px;font-weight:700">La Petite Parisienne</h1><p style="font-size:14px;color:#6b7280">Cuernavaca 🥐</p><div class="sync-indicator '+S.sync+'"><div class="sync-dot"></div><span>'+(S.sync==='synced'?'Guardado ☁️':S.sync==='syncing'?'Sincronizando...':'Sin conexión')+'</span></div></div>';
-  h+='<div style="padding:12px 20px;background:white"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div style="background:linear-gradient(135deg,#10b981,#059669);border-radius:16px;padding:16px;color:white"><p style="font-size:14px;opacity:0.8">Ingresos</p><p style="font-size:20px;font-weight:700">'+fmt(tot)+'</p></div><div style="background:linear-gradient(135deg,#f43f5e,#ec4899);border-radius:16px;padding:16px;color:white"><p style="font-size:14px;opacity:0.8">Por Cobrar</p><p style="font-size:20px;font-weight:700">'+fmt(pend)+'</p></div></div></div>';
-  h+='<div style="padding:12px 20px;background:white;display:flex;gap:8px;overflow-x:auto;border-bottom:1px solid #e5e7eb"><button onclick="S.filter=\'all\';render()" class="filter-btn '+(S.filter==='all'?'active':'')+'">Todos</button>';
-  PAY.forEach(p=>{h+='<button onclick="S.filter=\''+p.id+'\';render()" class="filter-btn '+(S.filter===p.id?'active':'')+'">'+p.label+'</button>';});
-  h+='</div><div style="flex:1;overflow-y:auto;padding:12px 20px"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><p style="font-size:12px;font-weight:600;color:#9ca3af">'+evs.length+' EVENTOS</p><button onclick="share()" style="font-size:12px;color:#f43f5e;display:flex;align-items:center;gap:4px">'+IC.share+' Compartir</button></div>';
-  
-  if(evs.length===0){h+='<div style="text-align:center;padding:48px 0"><div style="font-size:48px;margin-bottom:12px">🎂</div><p style="color:#9ca3af">No hay eventos</p></div>';}
-  else{evs.forEach(e=>{
-    const past=new Date(e.eventDate)<new Date().setHours(0,0,0,0);
-    const pr=profit(e);
-    h+='<div onclick="S.selected=S.events.find(x=>x.id===\''+e.id+'\');setView(\'detail\')" class="event-card" style="'+(past?'opacity:0.6':'')+'">';
-    h+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><div style="flex:1;min-width:0"><h3 style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e.clientName+'</h3><p style="font-size:14px;color:#6b7280">'+fmtD(e.eventDate)+'</p></div><span class="status-badge status-'+e.paymentStatus+'">'+(PAY.find(p=>p.id===e.paymentStatus)||{}).label+'</span></div>';
-    h+='<div style="display:flex;justify-content:space-between"><div style="display:flex;align-items:center;gap:4px;color:#9ca3af;font-size:14px;max-width:150px;overflow:hidden"><span style="width:14px;flex-shrink:0">'+IC.pin+'</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e.location+'</span></div><div style="text-align:right"><p style="font-weight:700">'+fmt(e.totalAmount)+'</p>'+(pr!==e.totalAmount?'<p style="font-size:12px;color:#16a34a">Ganancia: '+fmt(pr)+'</p>':'')+'</div></div>';
-    h+='<div style="display:flex;gap:4px;margin-top:8px">';(e.services||[]).forEach(s=>{const sv=SVC.find(x=>x.id===s);if(sv)h+='<span style="font-size:18px">'+sv.icon+'</span>';});h+='</div></div>';
-  });}
-  h+='</div>';
-  return h;
-}
+                <div class="toggle-group">
+                    <span class="toggle-label">Wedding Planner (Comisión 10%)</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="hasPlanner" onchange="togglePlannerFields()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
 
-function rCal(){
-  const M=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const D=['D','L','M','M','J','V','S'];
-  const y=S.month.getFullYear(),m=S.month.getMonth();
-  const first=new Date(y,m,1),last=new Date(y,m+1,0);
-  const days=[];for(let i=0;i<first.getDay();i++)days.push(null);for(let i=1;i<=last.getDate();i++)days.push(new Date(y,m,i));
-  const mEvs=S.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===m&&d.getFullYear()===y;}).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
-  
-  let h='<div class="header" style="display:flex;justify-content:space-between;align-items:center"><button onclick="S.month=new Date(S.month.getFullYear(),S.month.getMonth()-1);render()" style="padding:8px">'+IC.back+'</button><h2 style="font-size:18px;font-weight:600">'+M[m]+' '+y+'</h2><button onclick="S.month=new Date(S.month.getFullYear(),S.month.getMonth()+1);render()" style="padding:8px;transform:rotate(180deg)">'+IC.back+'</button></div>';
-  h+='<div style="padding:0 12px"><div style="display:grid;grid-template-columns:repeat(7,1fr)">';D.forEach(d=>{h+='<div style="text-align:center;font-size:12px;font-weight:600;color:#9ca3af;padding:8px">'+d+'</div>';});h+='</div>';
-  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
-  days.forEach(d=>{
-    if(!d){h+='<div></div>';return;}
-    const ds=d.toISOString().split('T')[0];
-    const evs=S.events.filter(e=>e.eventDate===ds);
-    const today=d.toDateString()===new Date().toDateString();
-    h+='<div onclick="'+(evs.length?'S.selected=S.events.find(x=>x.id===\''+evs[0].id+'\');setView(\'detail\')':'')+'" class="calendar-day '+(today?'today':'')+(evs.length&&!today?' has-events':'')+'">'+d.getDate();
-    if(evs.length){h+='<div style="display:flex;gap:2px">';evs.slice(0,3).forEach(e=>{h+='<div class="calendar-dot" style="background:'+(e.paymentStatus==='pagado'?'#22c55e':e.paymentStatus==='anticipo'?'#f59e0b':'#ef4444')+'"></div>';});h+='</div>';}
-    h+='</div>';
-  });
-  h+='</div></div>';
-  h+='<div style="flex:1;overflow-y:auto;padding:16px 20px"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">EVENTOS DEL MES</p>';
-  mEvs.forEach(e=>{h+='<div onclick="S.selected=S.events.find(x=>x.id===\''+e.id+'\');setView(\'detail\')" style="display:flex;align-items:center;gap:12px;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:8px"><div style="width:4px;height:48px;border-radius:4px;background:'+(e.paymentStatus==='pagado'?'#22c55e':e.paymentStatus==='anticipo'?'#f59e0b':'#ef4444')+'"></div><div style="flex:1"><p style="font-weight:500">'+e.clientName+'</p><p style="font-size:14px;color:#6b7280">'+fmtD(e.eventDate)+'</p></div><p style="font-weight:600">'+fmt(e.totalAmount)+'</p></div>';});
-  h+='</div>';
-  return h;
-}
+                <div id="plannerFields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Nombre del Planner</label>
+                        <input type="text" class="form-input" id="plannerName" placeholder="Nombre del wedding planner">
+                    </div>
+                    <div class="commission-group">
+                        <div class="form-group">
+                            <label class="form-label">Comisión (%)</label>
+                            <input type="number" class="form-input commission-rate" id="commissionRate" value="10" oninput="calculatePayments()">
+                        </div>
+                    </div>
+                </div>
 
-function rDash(){
-  const y=new Date().getFullYear();
-  const M=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const yEvs=S.events.filter(e=>new Date(e.eventDate).getFullYear()===y);
-  const tot=yEvs.reduce((s,e)=>s+(e.totalAmount||0),0);
-  const exp=yEvs.reduce((s,e)=>s+expT(e.expenses),0);
-  const com=yEvs.reduce((s,e)=>s+comm(e.totalAmount,e.plannerCommission),0);
-  const pr=tot-exp-com;
-  
-  let h='<div class="header"><h2 style="font-size:24px;font-weight:700">Dashboard</h2><p style="font-size:14px;color:#6b7280">'+y+'</p></div>';
-  h+='<div style="flex:1;overflow-y:auto;padding:16px 20px">';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px"><div class="stat-card"><p style="font-size:12px;color:#6b7280">Ingresos</p><p style="font-size:20px;font-weight:700;color:#16a34a">'+fmt(tot)+'</p></div><div class="stat-card"><p style="font-size:12px;color:#6b7280">Gastos</p><p style="font-size:20px;font-weight:700;color:#dc2626">'+fmt(exp)+'</p></div><div class="stat-card"><p style="font-size:12px;color:#6b7280">Ganancia</p><p style="font-size:20px;font-weight:700;color:#2563eb">'+fmt(pr)+'</p></div><div class="stat-card"><p style="font-size:12px;color:#6b7280">Eventos</p><p style="font-size:20px;font-weight:700">'+yEvs.length+'</p></div></div>';
-  h+='<div class="card"><h3 style="font-weight:600;margin-bottom:12px">Ingresos Mensuales</h3><div class="chart-container"><canvas id="chart"></canvas></div></div>';
-  h+='<div class="card"><h3 style="font-weight:600;margin-bottom:12px">Reporte Mensual</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px"><select id="repM" onchange="S.reportMonth=parseInt(this.value)">';M.forEach((m,i)=>{h+='<option value="'+i+'" '+(S.reportMonth===i?'selected':'')+'>'+m+'</option>';});h+='</select><select id="repY" onchange="S.reportYear=parseInt(this.value)">';[y-1,y,y+1].forEach(yr=>{h+='<option value="'+yr+'" '+(S.reportYear===yr?'selected':'')+'>'+yr+'</option>';});h+='</select></div><button onclick="genReport()" style="width:100%;padding:12px;background:#3b82f6;color:white;border-radius:12px;font-weight:500">'+IC.dl+' Generar Reporte</button></div>';
-  h+='</div>';
-  return h;
-}
+                <div class="amount-display">
+                    <div class="amount-label">Monto a Cobrar (después comisión)</div>
+                    <div class="amount-value" id="netAmount">$0</div>
+                </div>
 
-function genReport(){
-  const M=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const evs=S.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===S.reportMonth&&d.getFullYear()===S.reportYear;});
-  const rev=evs.reduce((s,e)=>s+(e.totalAmount||0),0);
-  const exp=evs.reduce((s,e)=>s+expT(e.expenses),0);
-  const com=evs.reduce((s,e)=>s+comm(e.totalAmount,e.plannerCommission),0);
-  let r='📊 REPORTE '+M[S.reportMonth]+' '+S.reportYear+'\n━━━━━━━━━━━━━━\n\n• Eventos: '+evs.length+'\n• Ingresos: '+fmt(rev)+'\n• Gastos: '+fmt(exp)+'\n• Comisiones: '+fmt(com)+'\n• Ganancia: '+fmt(rev-exp-com);
-  if(navigator.share)navigator.share({text:r});else{navigator.clipboard.writeText(r);alert('Copiado!');}
-}
+                <div class="payment-row">
+                    <span class="payment-label">Anticipo (50%)</span>
+                    <span class="payment-value" id="depositAmount">$0</span>
+                </div>
+                <div class="payment-row">
+                    <span class="payment-label">Liquidación (50%)</span>
+                    <span class="payment-value" id="finalAmount">$0</span>
+                </div>
+                <div class="payment-row" id="commissionRow" style="display: none;">
+                    <span class="payment-label">Comisión Planner</span>
+                    <span class="payment-value negative" id="commissionAmount">$0</span>
+                </div>
+            </div>
 
-function renderChart(){
-  const ctx=document.getElementById('chart');if(!ctx)return;
-  if(chart)chart.destroy();
-  const y=new Date().getFullYear();
-  const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const data=ms.map((_,i)=>{const evs=S.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===y;});return evs.reduce((s,e)=>s+(e.totalAmount||0),0);});
-  chart=new Chart(ctx,{type:'bar',data:{labels:ms,datasets:[{label:'Ingresos',data:data,backgroundColor:'rgba(34,197,94,0.8)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000)+'k'}}}}});
-}
+            <!-- RESICO Calculator -->
+            <div class="card resico-card">
+                <div class="resico-header">
+                    <span class="resico-badge">RESICO</span>
+                    <h3 class="resico-title">Cálculo Fiscal</h3>
+                </div>
+                
+                <div class="info-box">
+                    <span class="info-box-icon">ℹ️</span>
+                    RESICO: Régimen Simplificado de Confianza. El ISR se calcula mensualmente en el Dashboard según tus ingresos acumulados.
+                </div>
 
-function rDetail(){
-  const e=S.selected;if(!e)return'';
-  const pr=profit(e);const exp=expT(e.expenses);
-  let h='<div class="header" style="display:flex;align-items:center;gap:12px"><button onclick="S.selected=null;setView(\'home\')" style="padding:4px">'+IC.back+'</button><h2 style="flex:1;font-size:18px;font-weight:600">Detalles</h2><button onclick="editEv(S.selected)" style="color:#3b82f6">'+IC.edit+'</button></div>';
-  h+='<div style="flex:1;overflow-y:auto"><div class="card" style="margin:16px 20px"><div style="display:flex;justify-content:space-between"><div><h3 style="font-size:20px;font-weight:700">'+e.clientName+'</h3><span class="status-badge status-'+e.paymentStatus+'" style="margin-top:8px">'+(PAY.find(p=>p.id===e.paymentStatus)||{}).label+'</span></div><div style="display:flex;gap:4px">';(e.services||[]).forEach(s=>{const sv=SVC.find(x=>x.id===s);if(sv)h+='<span style="font-size:24px">'+sv.icon+'</span>';});h+='</div></div>';
-  if(e.clientPhone){h+='<div style="display:flex;gap:8px;margin-top:16px"><a href="tel:'+e.clientPhone+'" class="call-btn" style="flex:1;justify-content:center">'+IC.phone+' Llamar</a><a href="https://wa.me/'+e.clientPhone.replace(/\D/g,'')+'" target="_blank" class="whatsapp-btn" style="flex:1;justify-content:center">'+IC.wa+' WhatsApp</a></div>';}
-  h+='</div>';
-  h+='<div class="card" style="margin:0 20px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:20px">📅</span><div><p style="font-size:14px;color:#6b7280">Fecha</p><p style="font-weight:500">'+fmtDL(e.eventDate)+'</p></div></div>';
-  if(e.eventTime)h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:20px">🕐</span><div><p style="font-size:14px;color:#6b7280">Hora</p><p style="font-weight:500">'+e.eventTime+'</p></div></div>';
-  h+='<div style="display:flex;align-items:center;gap:12px"><span style="font-size:20px">📍</span><div><p style="font-size:14px;color:#6b7280">Lugar</p><p style="font-weight:500">'+e.location+'</p></div></div>';
-  if(e.weddingPlanner)h+='<div style="display:flex;align-items:center;gap:12px;margin-top:12px"><span style="font-size:20px">👤</span><div><p style="font-size:14px;color:#6b7280">Wedding Planner</p><p style="font-weight:500">'+e.weddingPlanner+' ('+e.plannerCommission+'%)</p></div></div>';
-  h+='</div>';
-  h+='<div class="card" style="margin:16px 20px"><h4 style="font-weight:600;margin-bottom:12px">Finanzas</h4>';
-  h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6"><span style="color:#6b7280">Total</span><span style="font-size:20px;font-weight:700">'+fmt(e.totalAmount)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6"><span style="color:#6b7280">Anticipo</span><span style="color:#16a34a">+'+fmt(e.depositAmount)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6"><span style="color:#6b7280">Por cobrar</span><span style="color:#dc2626">'+fmt((e.totalAmount||0)-(e.depositAmount||0))+'</span></div>';
-  if(e.weddingPlanner)h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6"><span style="color:#6b7280">Comisión</span><span style="color:#ea580c">-'+fmt(comm(e.totalAmount,e.plannerCommission))+'</span></div>';
-  if(exp>0)h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6"><span style="color:#6b7280">Gastos</span><span style="color:#dc2626">-'+fmt(exp)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;padding:12px;background:#eff6ff;border-radius:12px;margin-top:12px"><span style="font-weight:600;color:#1d4ed8">Ganancia Neta</span><span style="font-size:20px;font-weight:700;color:#1d4ed8">'+fmt(pr)+'</span></div></div>';
-  if((e.expenses||[]).length){h+='<div class="card" style="margin:0 20px"><h4 style="font-weight:600;margin-bottom:12px">Gastos</h4>';e.expenses.forEach(x=>{const cat=EXP.find(c=>c.id===x.category);h+='<div class="expense-row"><span style="font-size:20px">'+(cat?cat.icon:'📦')+'</span><div style="flex:1"><p style="font-weight:500">'+(x.description||x.category)+'</p></div><span style="font-weight:600;color:#dc2626">-'+fmt(x.amount)+'</span></div>';});h+='</div>';}
-  h+='<div class="card" style="margin:16px 20px"><h4 style="font-weight:600;margin-bottom:12px">Facturación</h4><div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:'+(e.facturaEmitida?'#f0fdf4':'#fffbeb')+'"><span style="font-size:24px">'+(e.facturaEmitida?'✅':'⏳')+'</span><div style="flex:1"><p style="font-weight:500;color:'+(e.facturaEmitida?'#15803d':'#b45309')+'">'+(e.facturaEmitida?'Factura emitida':'Pendiente')+'</p></div>'+(e.facturaEmitida?'':'<button onclick="markFac(\''+e.id+'\')" style="padding:8px 16px;background:#22c55e;color:white;border-radius:8px;font-weight:500">Marcar</button>')+'</div></div>';
-  if(e.notes)h+='<div class="card" style="margin:0 20px"><h4 style="font-weight:600;margin-bottom:8px">📝 Notas</h4><p style="color:#4b5563">'+e.notes+'</p></div>';
-  h+='<button onclick="delEv(\''+e.id+'\')" style="margin:24px 20px;padding:16px;background:#fef2f2;color:#dc2626;border-radius:16px;font-weight:600;width:calc(100% - 40px);display:flex;align-items:center;justify-content:center;gap:8px">'+IC.trash+' Eliminar</button></div>';
-  return h;
-}
+                <div class="resico-info">
+                    <div class="resico-item">
+                        <div class="resico-item-label">Ingreso Bruto</div>
+                        <div class="resico-item-value" id="resicoGross">$0</div>
+                    </div>
+                    <div class="resico-item">
+                        <div class="resico-item-label">Comisión Planner</div>
+                        <div class="resico-item-value tax" id="resicoCommission">$0</div>
+                    </div>
+                    <div class="resico-item">
+                        <div class="resico-item-label">Neto (sin impuestos)</div>
+                        <div class="resico-item-value net" id="resicoNet">$0</div>
+                    </div>
+                </div>
+            </div>
 
-function rForm(){
-  const f=S.form;
-  const exp=expT(f.expenses);
-  const com=comm(f.totalAmount||0,f.plannerCommission);
-  const pr=(parseFloat(f.totalAmount)||0)-com-exp;
-  
-  let h='<div class="header" style="display:flex;align-items:center;gap:12px"><button onclick="S.form=newForm();S.editing=null;setView(\'home\')" style="padding:4px">'+IC.x+'</button><h2 style="flex:1;font-size:18px;font-weight:600">'+(S.editing?'Editar':'Nuevo')+' Evento</h2><button onclick="submitForm()" style="color:#f43f5e;font-weight:600">Guardar</button></div>';
-  h+='<div style="flex:1;overflow-y:auto;padding:16px 20px">';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">CLIENTE</p>';
-  h+='<div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Nombre *</label><input id="fName" value="'+f.clientName+'" placeholder="María y Juan"></div>';
-  h+='<div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Teléfono</label><input type="tel" id="fPhone" value="'+(f.clientPhone||'')+'" placeholder="+52 777 123 4567"></div>';
-  h+='<div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Email</label><input type="email" id="fEmail" value="'+(f.clientEmail||'')+'" placeholder="cliente@email.com"></div></div>';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">EVENTO</p>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px"><div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Fecha *</label><input type="date" id="fDate" value="'+f.eventDate+'"></div><div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Hora</label><input type="time" id="fTime" value="'+f.eventTime+'"></div></div>';
-  h+='<div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Lugar *</label><input id="fLoc" value="'+f.location+'" placeholder="Hacienda Cortés"></div></div>';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">WEDDING PLANNER</p>';
-  h+='<div style="margin-bottom:12px"><input id="fPlanner" value="'+f.weddingPlanner+'" placeholder="Nombre del planner"></div>';
-  h+='<div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Comisión %</label><input type="number" id="fComm" value="'+f.plannerCommission+'" min="0" max="100"></div></div>';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">SERVICIOS</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-  SVC.forEach(s=>{h+='<button onclick="toggleSvc(\''+s.id+'\')" class="service-btn '+(f.services.includes(s.id)?'active':'')+'"><span style="font-size:20px">'+s.icon+'</span><span style="font-size:14px">'+s.label+'</span>'+(f.services.includes(s.id)?'<span style="margin-left:auto;color:#f43f5e">'+IC.check+'</span>':'')+'</button>';});
-  h+='</div></div>';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">PAGO</p>';
-  h+='<div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Monto Total *</label><input type="number" id="fTotal" value="'+f.totalAmount+'" placeholder="$ MXN"></div>';
-  h+='<div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Anticipo</label><input type="number" id="fDeposit" value="'+f.depositAmount+'" placeholder="$ MXN"></div>';
-  h+='<div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:8px">Estado</label><div style="display:flex;gap:8px">';
-  PAY.forEach(p=>{h+='<button onclick="setPay(\''+p.id+'\')" style="flex:1;padding:12px;border-radius:12px;font-size:14px;font-weight:500;background:'+(f.paymentStatus===p.id?'#111827':'#f3f4f6')+';color:'+(f.paymentStatus===p.id?'white':'#4b5563')+'">'+p.label+'</button>';});
-  h+='</div></div></div>';
-  
-  h+='<div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><p style="font-size:12px;font-weight:600;color:#9ca3af">GASTOS</p><button onclick="addExp()" style="font-size:14px;color:#f43f5e;font-weight:500">+ Agregar</button></div>';
-  f.expenses.forEach((e,i)=>{h+='<div class="expense-row"><select onchange="setExp('+i+',\'category\',this.value)" style="width:50px;padding:8px;background:transparent">';EXP.forEach(c=>{h+='<option value="'+c.id+'" '+(e.category===c.id?'selected':'')+'>'+c.icon+'</option>';});h+='</select><input value="'+(e.description||'')+'" onchange="setExp('+i+',\'description\',this.value)" placeholder="Descripción" style="flex:1;padding:8px;background:transparent"><input type="number" value="'+(e.amount||'')+'" onchange="setExp('+i+',\'amount\',this.value)" placeholder="$" style="width:70px;padding:8px;background:transparent;text-align:right"><button onclick="rmExp('+i+')" style="color:#ef4444;padding:4px">'+IC.x+'</button></div>';});
-  h+='</div>';
-  
-  h+='<div class="card" style="background:linear-gradient(135deg,#fff1f2,#fffbeb)"><h4 style="font-weight:600;margin-bottom:8px">Resumen</h4><div style="font-size:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Ingreso</span><span>'+fmt(f.totalAmount)+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Comisión</span><span style="color:#ea580c">-'+fmt(com)+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Gastos</span><span style="color:#dc2626">-'+fmt(exp)+'</span></div><div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.1)"><span>Ganancia</span><span style="color:#16a34a">'+fmt(pr)+'</span></div></div></div>';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">FACTURACIÓN</p>';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:20px">📄</span><span style="font-weight:500">Factura emitida</span></div><button onclick="toggleFac()" class="toggle '+(f.facturaEmitida?'active':'')+'"><div class="toggle-knob"></div></button></div>';
-  h+='<div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">RFC Cliente</label><input id="fRfc" value="'+(f.rfcCliente||'')+'" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div></div>';
-  
-  h+='<div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;margin-bottom:12px">NOTAS</p><textarea id="fNotes" rows="3" placeholder="Detalles adicionales..." style="resize:none">'+(f.notes||'')+'</textarea></div>';
-  h+='</div>';
-  return h;
-}
+            <!-- Notes -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📝 Notas</h3>
+                </div>
+                <div class="form-group">
+                    <textarea class="form-textarea" id="eventNotes" placeholder="Detalles adicionales, preferencias del cliente..."></textarea>
+                </div>
+            </div>
 
-function rSettings(){
-  let h='<div class="header"><h2 style="font-size:24px;font-weight:700">Ajustes</h2></div>';
-  h+='<div style="flex:1;overflow-y:auto;padding:16px 20px">';
-  h+='<div class="card" style="padding:0;overflow:hidden"><button onclick="const d=JSON.stringify(S.events,null,2);const b=new Blob([d],{type:\'application/json\'});const u=URL.createObjectURL(b);const a=document.createElement(\'a\');a.href=u;a.download=\'backup.json\';a.click();" style="width:100%;display:flex;align-items:center;gap:16px;padding:16px;border-bottom:1px solid #f3f4f6"><div style="width:40px;height:40px;background:#eff6ff;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#3b82f6">'+IC.dl+'</div><div style="text-align:left"><p style="font-weight:500">Exportar Datos</p><p style="font-size:14px;color:#6b7280">Backup JSON</p></div></button>';
-  h+='<label style="width:100%;display:flex;align-items:center;gap:16px;padding:16px;cursor:pointer"><div style="width:40px;height:40px;background:#f0fdf4;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#22c55e">'+IC.dl+'</div><div style="text-align:left"><p style="font-weight:500">Importar Datos</p><p style="font-size:14px;color:#6b7280">Restaurar backup</p></div><input type="file" accept=".json" onchange="const r=new FileReader();r.onload=async e=>{try{const d=JSON.parse(e.target.result);for(const ev of d)await saveEvent(ev);alert(\'Importado!\');}catch(e){alert(\'Error\');}};r.readAsText(this.files[0]);" style="display:none"></label></div>';
-  h+='<div style="text-align:center;margin-top:24px"><p style="color:#6b7280;font-size:14px;margin-bottom:8px">👤 '+S.user.email+'</p><p style="color:#9ca3af;font-size:14px">'+S.events.length+' eventos</p><p style="color:#d1d5db;font-size:12px;margin-top:4px">La Petite Parisienne v3.0</p><button onclick="logout()" style="margin-top:16px;padding:12px 24px;background:#fef2f2;color:#dc2626;border-radius:12px;font-weight:500">Cerrar sesión</button></div></div>';
-  return h;
-}
+            <button class="btn btn-primary" onclick="saveEvent()">
+                💾 Guardar Evento
+            </button>
+            
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="goToMainMenu()">
+                ← Volver al Menú
+            </button>
+        </section>
 
-function render(){
-  let h='';
-  if(S.authLoading){h='<div class="loading"><div class="spinner"></div></div>';}
-  else if(!S.user){h=rLogin();}
-  else if(S.loading){h='<div class="loading"><div class="spinner"></div></div>';}
-  else{
-    if(S.view==='home')h=rHome();
-    else if(S.view==='calendar')h=rCal();
-    else if(S.view==='dashboard')h=rDash();
-    else if(S.view==='detail')h=rDetail();
-    else if(S.view==='form')h=rForm();
-    else if(S.view==='settings')h=rSettings();
-    if(['home','calendar','dashboard','settings'].includes(S.view))h+=rTabs();
-  }
-  document.getElementById('app').innerHTML=h;
-}
+        <!-- SECTION: Lista de Eventos -->
+        <section id="events" class="section">
+            <div class="tabs">
+                <button class="tab active" onclick="filterEvents('all', this)">Todos</button>
+                <button class="tab" onclick="filterEvents('pending', this)">Pendientes</button>
+                <button class="tab" onclick="filterEvents('partial', this)">Anticipo</button>
+                <button class="tab" onclick="filterEvents('paid', this)">Pagados</button>
+            </div>
 
-render();
-</script>
+            <div id="eventsList">
+                <!-- Events will be rendered here -->
+            </div>
+
+            <button class="btn btn-secondary" style="margin-top: 20px;" onclick="goToMainMenu()">
+                ← Volver al Menú
+            </button>
+        </section>
+
+        <!-- SECTION: Detalle de Evento -->
+        <section id="eventDetail" class="section">
+            <div id="eventDetailContent">
+                <!-- Event detail will be rendered here -->
+            </div>
+        </section>
+
+        <!-- SECTION: Dashboard -->
+        <section id="dashboard" class="section">
+            <div class="month-selector">
+                <button class="month-nav" onclick="changeMonth(-1)">←</button>
+                <span class="month-display" id="monthDisplay">Enero 2025</span>
+                <button class="month-nav" onclick="changeMonth(1)">→</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="dashEventCount">0</div>
+                    <div class="stat-label">Eventos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-value" id="dashRevenue">$0</div>
+                    <div class="stat-label">Ingresos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💸</div>
+                    <div class="stat-value" id="dashExpenses">$0</div>
+                    <div class="stat-label">Gastos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value" id="dashNet">$0</div>
+                    <div class="stat-label">Neto</div>
+                </div>
+            </div>
+
+            <!-- RESICO Summary -->
+            <div class="card resico-card">
+                <div class="resico-header">
+                    <span class="resico-badge">RESICO</span>
+                    <h3 class="resico-title">Impuestos del Mes</h3>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Tasa RESICO Mensual (%)</label>
+                    <select class="form-select" id="dashResicoRate" onchange="updateDashboard()">
+                        <option value="1">1% (hasta $300,000 anuales)</option>
+                        <option value="1.1">1.1% ($300,001 - $600,000)</option>
+                        <option value="1.5">1.5% ($600,001 - $1,000,000)</option>
+                        <option value="2">2% ($1,000,001 - $2,500,000)</option>
+                        <option value="2.5" selected>2.5% ($2,500,001 - $3,500,000)</option>
+                    </select>
+                </div>
+                
+                <div class="resico-info">
+                    <div class="resico-item">
+                        <div class="resico-item-label">Base Gravable</div>
+                        <div class="resico-item-value" id="dashResicoBase">$0</div>
+                    </div>
+                    <div class="resico-item">
+                        <div class="resico-item-label">ISR RESICO</div>
+                        <div class="resico-item-value tax" id="dashResicoTax">$0</div>
+                    </div>
+                    <div class="resico-item">
+                        <div class="resico-item-label">Comisiones</div>
+                        <div class="resico-item-value tax" id="dashCommissions">$0</div>
+                    </div>
+                    <div class="resico-item">
+                        <div class="resico-item-label">Utilidad Neta</div>
+                        <div class="resico-item-value net" id="dashNetProfit">$0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Commission Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🤝 Comisiones del Mes</h3>
+                </div>
+                <div id="commissionSummary">
+                    <!-- Will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Send Report -->
+            <button class="btn btn-whatsapp" onclick="sendMonthlyReport()">
+                📱 Enviar Reporte por WhatsApp
+            </button>
+
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="goToMainMenu()">
+                ← Volver al Menú
+            </button>
+        </section>
+
+        <!-- SECTION: Gastos -->
+        <section id="expenses" class="section">
+            <div class="month-selector">
+                <button class="month-nav" onclick="changeExpenseMonth(-1)">←</button>
+                <span class="month-display" id="expenseMonthDisplay">Enero 2025</span>
+                <button class="month-nav" onclick="changeExpenseMonth(1)">→</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">➕ Agregar Gasto</h3>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descripción</label>
+                    <input type="text" class="form-input" id="expenseDesc" placeholder="Ingredientes, transporte...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Categoría</label>
+                    <select class="form-select" id="expenseCategory">
+                        <option value="ingredientes">🥚 Ingredientes</option>
+                        <option value="transporte">🚗 Transporte</option>
+                        <option value="equipo">🔧 Equipo</option>
+                        <option value="marketing">📣 Marketing</option>
+                        <option value="otro">📦 Otro</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Monto</label>
+                    <input type="number" class="form-input" id="expenseAmount" placeholder="500">
+                </div>
+
+                <button class="btn btn-primary" onclick="addExpense()">
+                    ➕ Agregar Gasto
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📋 Gastos del Mes</h3>
+                    <span class="card-badge badge-pending" id="totalExpensesBadge">$0</span>
+                </div>
+                <div id="expensesList">
+                    <!-- Expenses will be rendered here -->
+                </div>
+            </div>
+
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="goToMainMenu()">
+                ← Volver al Menú
+            </button>
+        </section>
+
+        <!-- SECTION: Service Form (Quick service entry from menu) -->
+        <section id="serviceForm" class="section">
+            <div id="serviceFormContent">
+                <!-- Will be rendered dynamically -->
+            </div>
+        </section>
+    </main>
+    </div> <!-- End of appContainer -->
+
+    <script>
+        // ==================== FIREBASE CONFIG ====================
+        firebase.initializeApp({
+            apiKey: "AIzaSyDueowWpJEKAuoYKrsS0ddRelxuspIfhTA",
+            authDomain: "la-petite-parisienne.firebaseapp.com",
+            projectId: "la-petite-parisienne",
+            storageBucket: "la-petite-parisienne.firebasestorage.app",
+            messagingSenderId: "377979404609",
+            appId: "1:377979404609:web:7b32a282f8201fdface1c0"
+        });
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let currentUser = null;
+        let syncStatus = 'synced';
+
+        // ==================== AUTH FUNCTIONS ====================
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            document.getElementById('loadingScreen').style.display = 'none';
+            
+            if (user) {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('appContainer').classList.add('visible');
+                document.getElementById('headerUser').textContent = '👤 ' + user.email.split('@')[0];
+                loadDataFromFirebase();
+            } else {
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('appContainer').classList.remove('visible');
+            }
+        });
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const errorEl = document.getElementById('loginError');
+
+            if (!email || !password) {
+                errorEl.textContent = 'Por favor ingresa email y contraseña';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (e) {
+                let msg = 'Error de conexión';
+                if (e.code === 'auth/invalid-email') msg = 'Email inválido';
+                else if (e.code === 'auth/user-not-found') msg = 'Usuario no encontrado';
+                else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Contraseña incorrecta';
+                errorEl.textContent = msg;
+                errorEl.classList.add('show');
+            }
+        }
+
+        function logout() {
+            if (confirm('¿Cerrar sesión?')) {
+                auth.signOut();
+            }
+        }
+
+        function updateSyncStatus(status) {
+            syncStatus = status;
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
+            
+            dot.className = 'sync-dot';
+            if (status === 'syncing') {
+                dot.classList.add('syncing');
+                text.textContent = 'Sincronizando...';
+            } else if (status === 'error') {
+                dot.classList.add('error');
+                text.textContent = 'Sin conexión';
+            } else {
+                text.textContent = 'Guardado ☁️';
+            }
+        }
+
+        // ==================== FIREBASE DATA ====================
+        async function loadDataFromFirebase() {
+            updateSyncStatus('syncing');
+            try {
+                // Load events
+                const eventsSnap = await db.collection('dm_events').orderBy('eventDate', 'asc').get();
+                appData.events = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                // Load expenses
+                const expensesSnap = await db.collection('dm_expenses').get();
+                appData.expenses = expensesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                // Cache locally
+                localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+                updateSyncStatus('synced');
+            } catch (e) {
+                console.error('Error loading from Firebase:', e);
+                updateSyncStatus('error');
+                // Load from cache
+                const cached = localStorage.getItem('dulcesMomentosData');
+                if (cached) appData = JSON.parse(cached);
+            }
+            
+            initializeApp();
+            updateQuickStats();
+        }
+
+        async function saveEventToFirebase(event) {
+            updateSyncStatus('syncing');
+            try {
+                if (event.id && !event.id.startsWith('local_')) {
+                    await db.collection('dm_events').doc(event.id).set(event);
+                } else {
+                    const ref = await db.collection('dm_events').add(event);
+                    event.id = ref.id;
+                }
+                updateSyncStatus('synced');
+            } catch (e) {
+                console.error('Error saving event:', e);
+                updateSyncStatus('error');
+            }
+            // Always save locally as backup
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        }
+
+        async function deleteEventFromFirebase(eventId) {
+            updateSyncStatus('syncing');
+            try {
+                if (eventId && !eventId.startsWith('local_')) {
+                    await db.collection('dm_events').doc(eventId).delete();
+                }
+                updateSyncStatus('synced');
+            } catch (e) {
+                console.error('Error deleting event:', e);
+                updateSyncStatus('error');
+            }
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        }
+
+        async function saveExpenseToFirebase(expense) {
+            updateSyncStatus('syncing');
+            try {
+                if (expense.id && !expense.id.startsWith('local_')) {
+                    await db.collection('dm_expenses').doc(expense.id).set(expense);
+                } else {
+                    const ref = await db.collection('dm_expenses').add(expense);
+                    expense.id = ref.id;
+                }
+                updateSyncStatus('synced');
+            } catch (e) {
+                console.error('Error saving expense:', e);
+                updateSyncStatus('error');
+            }
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        }
+
+        async function deleteExpenseFromFirebase(expenseId) {
+            updateSyncStatus('syncing');
+            try {
+                if (expenseId && !expenseId.startsWith('local_')) {
+                    await db.collection('dm_expenses').doc(expenseId).delete();
+                }
+                updateSyncStatus('synced');
+            } catch (e) {
+                console.error('Error deleting expense:', e);
+                updateSyncStatus('error');
+            }
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        }
+
+        // ==================== DATA STORAGE ====================
+        let appData = {
+            events: [],
+            expenses: [],
+            settings: {
+                defaultResicoRate: 2.5
+            }
+        };
+
+        // Current state
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+        let expenseMonth = new Date().getMonth();
+        let expenseYear = new Date().getFullYear();
+        let currentEventId = null;
+        let currentFilter = 'all';
+        let selectedServices = [];
+
+        // Form data preservation
+        let formData = {
+            newEvent: {},
+            serviceForm: {}
+        };
+
+        // ==================== INITIALIZATION ====================
+        // Note: initializeApp is called after Firebase auth check
+
+        function initializeApp() {
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            const eventDateEl = document.getElementById('eventDate');
+            if (eventDateEl) eventDateEl.value = today;
+            
+            // Venue change handler
+            const venueEl = document.getElementById('eventVenue');
+            if (venueEl) {
+                venueEl.addEventListener('change', function() {
+                    document.getElementById('otherVenueGroup').style.display = 
+                        this.value === 'Otro' ? 'block' : 'none';
+                });
+            }
+
+            updateMonthDisplay();
+            updateExpenseMonthDisplay();
+            renderEvents();
+            renderExpenses();
+        }
+
+        // ==================== DATA PERSISTENCE ====================
+        function loadData() {
+            // This is now handled by loadDataFromFirebase
+            const saved = localStorage.getItem('dulcesMomentosData');
+            if (saved) {
+                appData = JSON.parse(saved);
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        }
+
+        // ==================== NAVIGATION ====================
+        function showSection(sectionId) {
+            // Save current form data before switching
+            saveFormData();
+            
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            
+            // Show target section
+            document.getElementById(sectionId).classList.add('active');
+            
+            // Show/hide back button
+            const backBtn = document.getElementById('backToMenuBtn');
+            if (sectionId === 'mainMenu') {
+                backBtn.style.display = 'none';
+            } else {
+                backBtn.style.display = 'flex';
+            }
+
+            // Restore form data if returning to form
+            if (sectionId === 'newEvent') {
+                restoreFormData();
+            }
+
+            // Refresh data for certain sections
+            if (sectionId === 'events') {
+                renderEvents();
+            } else if (sectionId === 'dashboard') {
+                updateDashboard();
+            } else if (sectionId === 'expenses') {
+                renderExpenses();
+            }
+
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+
+        function goToMainMenu() {
+            showSection('mainMenu');
+            updateQuickStats();
+        }
+
+        // ==================== FORM DATA PRESERVATION ====================
+        function saveFormData() {
+            const newEventSection = document.getElementById('newEvent');
+            if (newEventSection.classList.contains('active')) {
+                formData.newEvent = {
+                    clientName: document.getElementById('clientName').value,
+                    clientPhone: document.getElementById('clientPhone').value,
+                    eventDate: document.getElementById('eventDate').value,
+                    eventVenue: document.getElementById('eventVenue').value,
+                    otherVenue: document.getElementById('otherVenue').value,
+                    guestCount: document.getElementById('guestCount').value,
+                    totalPrice: document.getElementById('totalPrice').value,
+                    hasPlanner: document.getElementById('hasPlanner').checked,
+                    plannerName: document.getElementById('plannerName').value,
+                    commissionRate: document.getElementById('commissionRate').value,
+                    eventNotes: document.getElementById('eventNotes').value,
+                    selectedServices: [...selectedServices]
+                };
+            }
+        }
+
+        function restoreFormData() {
+            if (formData.newEvent && Object.keys(formData.newEvent).length > 0) {
+                const data = formData.newEvent;
+                document.getElementById('clientName').value = data.clientName || '';
+                document.getElementById('clientPhone').value = data.clientPhone || '';
+                document.getElementById('eventDate').value = data.eventDate || '';
+                document.getElementById('eventVenue').value = data.eventVenue || '';
+                document.getElementById('otherVenue').value = data.otherVenue || '';
+                document.getElementById('guestCount').value = data.guestCount || '';
+                document.getElementById('totalPrice').value = data.totalPrice || '';
+                document.getElementById('hasPlanner').checked = data.hasPlanner || false;
+                document.getElementById('plannerName').value = data.plannerName || '';
+                document.getElementById('commissionRate').value = data.commissionRate || '10';
+                document.getElementById('eventNotes').value = data.eventNotes || '';
+                
+                // Restore selected services
+                selectedServices = data.selectedServices || [];
+                document.querySelectorAll('.service-card').forEach(card => {
+                    const service = card.dataset.service;
+                    if (selectedServices.includes(service)) {
+                        card.classList.add('selected');
+                    } else {
+                        card.classList.remove('selected');
+                    }
+                });
+
+                // Update UI
+                togglePlannerFields();
+                calculatePayments();
+                
+                if (data.eventVenue === 'Otro') {
+                    document.getElementById('otherVenueGroup').style.display = 'block';
+                }
+            }
+        }
+
+        function clearFormData() {
+            formData.newEvent = {};
+            selectedServices = [];
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientPhone').value = '';
+            document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('eventVenue').value = '';
+            document.getElementById('otherVenue').value = '';
+            document.getElementById('guestCount').value = '';
+            document.getElementById('totalPrice').value = '';
+            document.getElementById('hasPlanner').checked = false;
+            document.getElementById('plannerName').value = '';
+            document.getElementById('commissionRate').value = '10';
+            document.getElementById('eventNotes').value = '';
+            document.querySelectorAll('.service-card').forEach(card => card.classList.remove('selected'));
+            document.getElementById('plannerFields').style.display = 'none';
+            document.getElementById('commissionRow').style.display = 'none';
+            calculatePayments();
+        }
+
+        // ==================== SERVICES ====================
+        function toggleService(element) {
+            const service = element.dataset.service;
+            element.classList.toggle('selected');
+            
+            if (element.classList.contains('selected')) {
+                if (!selectedServices.includes(service)) {
+                    selectedServices.push(service);
+                }
+            } else {
+                selectedServices = selectedServices.filter(s => s !== service);
+            }
+            
+            updateServiceDetails();
+        }
+
+        function updateServiceDetails() {
+            const container = document.getElementById('serviceDetails');
+            if (selectedServices.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '<div style="margin-top: 15px;">';
+            selectedServices.forEach(service => {
+                const serviceNames = {
+                    pastel: '🎂 Pastel',
+                    mesa_dulces: '🍬 Mesa de Dulces',
+                    postres: '🧁 Postres',
+                    quesos: '🧀 Mesa de Quesos',
+                    bebidas: '🥂 Bebidas',
+                    otro: '📦 Otro'
+                };
+                html += `
+                    <div class="form-group">
+                        <label class="form-label">${serviceNames[service]} - Detalles</label>
+                        <input type="text" class="form-input" id="service_${service}_details" 
+                            placeholder="Descripción específica..." 
+                            value="${formData.newEvent[`service_${service}_details`] || ''}">
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function showServiceForm(serviceType) {
+            const serviceNames = {
+                pastel: { icon: '🎂', name: 'Pastel de Bodas' },
+                mesa_dulces: { icon: '🍬', name: 'Mesa de Dulces' },
+                postres: { icon: '🧁', name: 'Postres' },
+                quesos: { icon: '🧀', name: 'Mesa de Quesos' }
+            };
+
+            const service = serviceNames[serviceType];
+            
+            const html = `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">${service.icon} ${service.name}</h3>
+                    </div>
+                    <p style="color: var(--text-medium); margin-bottom: 20px;">
+                        ¿Quieres crear un nuevo evento con este servicio?
+                    </p>
+                    <button class="btn btn-primary" onclick="startEventWithService('${serviceType}')">
+                        ✨ Crear Evento con ${service.name}
+                    </button>
+                    <button class="btn btn-secondary" style="margin-top: 10px;" onclick="goToMainMenu()">
+                        ← Volver al Menú
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('serviceFormContent').innerHTML = html;
+            showSection('serviceForm');
+        }
+
+        function startEventWithService(serviceType) {
+            // Pre-select the service
+            selectedServices = [serviceType];
+            formData.newEvent = { selectedServices: [serviceType] };
+            
+            showSection('newEvent');
+            
+            // Mark the service as selected in UI
+            document.querySelectorAll('.service-card').forEach(card => {
+                if (card.dataset.service === serviceType) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+            
+            updateServiceDetails();
+        }
+
+        // ==================== PAYMENTS & CALCULATIONS ====================
+        function togglePlannerFields() {
+            const hasPlanner = document.getElementById('hasPlanner').checked;
+            document.getElementById('plannerFields').style.display = hasPlanner ? 'block' : 'none';
+            document.getElementById('commissionRow').style.display = hasPlanner ? 'flex' : 'none';
+            calculatePayments();
+        }
+
+        function calculatePayments() {
+            const totalPrice = parseFloat(document.getElementById('totalPrice').value) || 0;
+            const hasPlanner = document.getElementById('hasPlanner').checked;
+            const commissionRate = parseFloat(document.getElementById('commissionRate').value) || 10;
+
+            // Calculate commission
+            const commission = hasPlanner ? totalPrice * (commissionRate / 100) : 0;
+            const netAfterCommission = totalPrice - commission;
+
+            // Calculate 50/50 split
+            const deposit = netAfterCommission / 2;
+            const final = netAfterCommission / 2;
+
+            // Update UI
+            document.getElementById('netAmount').textContent = formatCurrency(netAfterCommission);
+            document.getElementById('depositAmount').textContent = formatCurrency(deposit);
+            document.getElementById('finalAmount').textContent = formatCurrency(final);
+            document.getElementById('commissionAmount').textContent = formatCurrency(commission);
+
+            // RESICO UI (simplifié - pas d'IVA, ISR calculé mensuellement)
+            document.getElementById('resicoGross').textContent = formatCurrency(totalPrice);
+            document.getElementById('resicoCommission').textContent = formatCurrency(commission);
+            document.getElementById('resicoNet').textContent = formatCurrency(netAfterCommission);
+        }
+
+        function formatCurrency(amount) {
+            return '$' + amount.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }
+
+        // ==================== EVENTS CRUD ====================
+        function saveEvent() {
+            const clientName = document.getElementById('clientName').value.trim();
+            const clientPhone = document.getElementById('clientPhone').value.trim();
+            const eventDate = document.getElementById('eventDate').value;
+            const totalPrice = parseFloat(document.getElementById('totalPrice').value) || 0;
+
+            if (!clientName || !eventDate || totalPrice <= 0) {
+                alert('Por favor completa los campos obligatorios: Nombre, Fecha y Precio');
+                return;
+            }
+
+            const hasPlanner = document.getElementById('hasPlanner').checked;
+            const commissionRate = parseFloat(document.getElementById('commissionRate').value) || 10;
+            const commission = hasPlanner ? totalPrice * (commissionRate / 100) : 0;
+            const netAmount = totalPrice - commission;
+
+            let venue = document.getElementById('eventVenue').value;
+            if (venue === 'Otro') {
+                venue = document.getElementById('otherVenue').value || 'Otro';
+            }
+
+            // Collect service details
+            const serviceDetails = {};
+            selectedServices.forEach(service => {
+                const detailInput = document.getElementById(`service_${service}_details`);
+                if (detailInput) {
+                    serviceDetails[service] = detailInput.value;
+                }
+            });
+
+            const event = {
+                id: 'local_' + Date.now().toString(),
+                clientName,
+                clientPhone,
+                eventDate,
+                venue,
+                guestCount: parseInt(document.getElementById('guestCount').value) || 0,
+                services: [...selectedServices],
+                serviceDetails,
+                totalPrice,
+                netAmount,
+                deposit: netAmount / 2,
+                final: netAmount / 2,
+                hasPlanner,
+                plannerName: hasPlanner ? document.getElementById('plannerName').value : '',
+                commissionRate: hasPlanner ? commissionRate : 0,
+                commission,
+                notes: document.getElementById('eventNotes').value,
+                status: 'pending', // pending, partial, paid
+                depositPaid: false,
+                finalPaid: false,
+                createdAt: new Date().toISOString()
+            };
+
+            appData.events.push(event);
+            saveData();
+            saveEventToFirebase(event);
+            
+            // Clear form
+            clearFormData();
+            
+            alert('✅ Evento guardado exitosamente!');
+            goToMainMenu();
+        }
+
+        function renderEvents() {
+            const container = document.getElementById('eventsList');
+            let events = [...appData.events];
+
+            // Sort by date
+            events.sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate));
+
+            // Filter
+            if (currentFilter !== 'all') {
+                events = events.filter(e => e.status === currentFilter);
+            }
+
+            if (events.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: var(--text-medium);">
+                        <div style="font-size: 3rem; margin-bottom: 15px;">📭</div>
+                        <p>No hay eventos ${currentFilter !== 'all' ? 'con este filtro' : ''}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = events.map(event => {
+                const statusBadge = {
+                    pending: { class: 'badge-pending', text: 'Pendiente' },
+                    partial: { class: 'badge-partial', text: 'Anticipo' },
+                    paid: { class: 'badge-paid', text: 'Pagado' }
+                }[event.status];
+
+                const serviceIcons = event.services.map(s => {
+                    const icons = { pastel: '🎂', mesa_dulces: '🍬', postres: '🧁', quesos: '🧀', bebidas: '🥂', otro: '📦' };
+                    return icons[s] || '📦';
+                }).join('');
+
+                return `
+                    <div class="event-item" onclick="showEventDetail('${event.id}')">
+                        <div class="event-icon">${serviceIcons || '🎂'}</div>
+                        <div class="event-details">
+                            <div class="event-name">${event.clientName}</div>
+                            <div class="event-date">${formatDate(event.eventDate)} • ${event.venue || 'Sin lugar'}</div>
+                        </div>
+                        <div class="event-amount">
+                            <div class="event-total">${formatCurrency(event.totalPrice)}</div>
+                            <div class="event-status">
+                                <span class="card-badge ${statusBadge.class}">${statusBadge.text}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterEvents(filter, btn) {
+            currentFilter = filter;
+            document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            renderEvents();
+        }
+
+        function showEventDetail(eventId) {
+            currentEventId = eventId;
+            const event = appData.events.find(e => e.id === eventId);
+            if (!event) return;
+
+            const container = document.getElementById('eventDetailContent');
+            
+            const serviceNames = {
+                pastel: '🎂 Pastel',
+                mesa_dulces: '🍬 Mesa de Dulces',
+                postres: '🧁 Postres',
+                quesos: '🧀 Mesa de Quesos',
+                bebidas: '🥂 Bebidas',
+                otro: '📦 Otro'
+            };
+
+            const servicesHtml = event.services.map(s => `
+                <div style="background: var(--primary-light); padding: 8px 12px; border-radius: 8px; margin: 4px;">
+                    ${serviceNames[s] || s}
+                    ${event.serviceDetails && event.serviceDetails[s] ? `<br><small style="color: var(--text-medium);">${event.serviceDetails[s]}</small>` : ''}
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">${event.clientName}</h3>
+                        <span class="card-badge ${event.status === 'paid' ? 'badge-paid' : event.status === 'partial' ? 'badge-partial' : 'badge-pending'}">
+                            ${event.status === 'paid' ? 'Pagado' : event.status === 'partial' ? 'Anticipo' : 'Pendiente'}
+                        </span>
+                    </div>
+                    
+                    <div class="payment-row">
+                        <span class="payment-label">📅 Fecha</span>
+                        <span class="payment-value">${formatDate(event.eventDate)}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">📍 Lugar</span>
+                        <span class="payment-value">${event.venue || 'No especificado'}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">👥 Invitados</span>
+                        <span class="payment-value">${event.guestCount || '-'}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">📱 WhatsApp</span>
+                        <span class="payment-value">${event.clientPhone || '-'}</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🎂 Servicios</h3>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        ${servicesHtml || '<p style="color: var(--text-medium);">Sin servicios especificados</p>'}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">💰 Pagos</h3>
+                    </div>
+                    
+                    <div class="amount-display">
+                        <div class="amount-label">Total del Evento</div>
+                        <div class="amount-value">${formatCurrency(event.totalPrice)}</div>
+                    </div>
+
+                    ${event.hasPlanner ? `
+                        <div class="payment-row">
+                            <span class="payment-label">🤝 Comisión (${event.commissionRate}%)</span>
+                            <span class="payment-value negative">-${formatCurrency(event.commission)}</span>
+                        </div>
+                        <div class="payment-row">
+                            <span class="payment-label">Planner: ${event.plannerName}</span>
+                            <span class="payment-value"></span>
+                        </div>
+                    ` : ''}
+
+                    <div class="payment-row" style="border-top: 2px solid var(--border); padding-top: 15px; margin-top: 10px;">
+                        <span class="payment-label">💵 Neto a Cobrar</span>
+                        <span class="payment-value" style="font-size: 1.2rem;">${formatCurrency(event.netAmount)}</span>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <div class="toggle-group" onclick="togglePayment('${event.id}', 'deposit')">
+                            <span class="toggle-label">Anticipo (50%): ${formatCurrency(event.deposit)}</span>
+                            <span style="font-size: 1.5rem;">${event.depositPaid ? '✅' : '⬜'}</span>
+                        </div>
+                        <div class="toggle-group" onclick="togglePayment('${event.id}', 'final')">
+                            <span class="toggle-label">Liquidación (50%): ${formatCurrency(event.final)}</span>
+                            <span style="font-size: 1.5rem;">${event.finalPaid ? '✅' : '⬜'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RESICO Card -->
+                <div class="card resico-card">
+                    <div class="resico-header">
+                        <span class="resico-badge">RESICO</span>
+                        <h3 class="resico-title">Resumen Financiero</h3>
+                    </div>
+                    <div class="resico-info">
+                        <div class="resico-item">
+                            <div class="resico-item-label">Ingreso Bruto</div>
+                            <div class="resico-item-value">${formatCurrency(event.totalPrice)}</div>
+                        </div>
+                        <div class="resico-item">
+                            <div class="resico-item-label">Comisión Planner</div>
+                            <div class="resico-item-value tax">${formatCurrency(event.commission || 0)}</div>
+                        </div>
+                        <div class="resico-item">
+                            <div class="resico-item-label">Neto a Cobrar</div>
+                            <div class="resico-item-value net">${formatCurrency(event.netAmount)}</div>
+                        </div>
+                        <div class="resico-item">
+                            <div class="resico-item-label">ISR</div>
+                            <div class="resico-item-value" style="color: var(--text-medium);">Ver Dashboard</div>
+                        </div>
+                    </div>
+                </div>
+
+                ${event.notes ? `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">📝 Notas</h3>
+                        </div>
+                        <p style="color: var(--text-medium);">${event.notes}</p>
+                    </div>
+                ` : ''}
+
+                ${event.clientPhone ? `
+                    <button class="btn btn-whatsapp" onclick="contactWhatsApp('${event.clientPhone}', '${event.clientName}')">
+                        📱 Contactar por WhatsApp
+                    </button>
+                ` : ''}
+
+                <button class="btn btn-danger" style="margin-top: 10px;" onclick="deleteEvent('${event.id}')">
+                    🗑️ Eliminar Evento
+                </button>
+
+                <button class="btn btn-secondary" style="margin-top: 10px;" onclick="showSection('events')">
+                    ← Volver a Eventos
+                </button>
+            `;
+
+            showSection('eventDetail');
+        }
+
+        function togglePayment(eventId, type) {
+            const event = appData.events.find(e => e.id === eventId);
+            if (!event) return;
+
+            if (type === 'deposit') {
+                event.depositPaid = !event.depositPaid;
+            } else {
+                event.finalPaid = !event.finalPaid;
+            }
+
+            // Update status
+            if (event.depositPaid && event.finalPaid) {
+                event.status = 'paid';
+            } else if (event.depositPaid || event.finalPaid) {
+                event.status = 'partial';
+            } else {
+                event.status = 'pending';
+            }
+
+            saveData();
+            saveEventToFirebase(event);
+            showEventDetail(eventId);
+        }
+
+        function deleteEvent(eventId) {
+            if (confirm('¿Estás seguro de eliminar este evento?')) {
+                appData.events = appData.events.filter(e => e.id !== eventId);
+                saveData();
+                deleteEventFromFirebase(eventId);
+                showSection('events');
+            }
+        }
+
+        // ==================== EXPENSES ====================
+        function addExpense() {
+            const desc = document.getElementById('expenseDesc').value.trim();
+            const category = document.getElementById('expenseCategory').value;
+            const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
+
+            if (!desc || amount <= 0) {
+                alert('Por favor completa la descripción y el monto');
+                return;
+            }
+
+            const expense = {
+                id: 'local_' + Date.now().toString(),
+                description: desc,
+                category,
+                amount,
+                month: expenseMonth,
+                year: expenseYear,
+                createdAt: new Date().toISOString()
+            };
+
+            appData.expenses.push(expense);
+            saveData();
+            saveExpenseToFirebase(expense);
+
+            // Clear form
+            document.getElementById('expenseDesc').value = '';
+            document.getElementById('expenseAmount').value = '';
+
+            renderExpenses();
+        }
+
+        function renderExpenses() {
+            const expenses = appData.expenses.filter(e => 
+                e.month === expenseMonth && e.year === expenseYear
+            );
+
+            const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+            document.getElementById('totalExpensesBadge').textContent = formatCurrency(total);
+
+            const container = document.getElementById('expensesList');
+            
+            if (expenses.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--text-medium);">
+                        Sin gastos este mes
+                    </div>
+                `;
+                return;
+            }
+
+            const categoryIcons = {
+                ingredientes: '🥚',
+                transporte: '🚗',
+                equipo: '🔧',
+                marketing: '📣',
+                otro: '📦'
+            };
+
+            container.innerHTML = expenses.map(expense => `
+                <div class="expense-item">
+                    <div class="expense-info">
+                        <div class="expense-desc">${categoryIcons[expense.category]} ${expense.description}</div>
+                    </div>
+                    <div class="expense-amount">${formatCurrency(expense.amount)}</div>
+                    <button class="delete-btn" onclick="deleteExpense('${expense.id}')">×</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteExpense(expenseId) {
+            appData.expenses = appData.expenses.filter(e => e.id !== expenseId);
+            saveData();
+            deleteExpenseFromFirebase(expenseId);
+            renderExpenses();
+        }
+
+        function changeExpenseMonth(delta) {
+            expenseMonth += delta;
+            if (expenseMonth > 11) {
+                expenseMonth = 0;
+                expenseYear++;
+            } else if (expenseMonth < 0) {
+                expenseMonth = 11;
+                expenseYear--;
+            }
+            updateExpenseMonthDisplay();
+            renderExpenses();
+        }
+
+        function updateExpenseMonthDisplay() {
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            document.getElementById('expenseMonthDisplay').textContent = `${months[expenseMonth]} ${expenseYear}`;
+        }
+
+        // ==================== DASHBOARD ====================
+        function changeMonth(delta) {
+            currentMonth += delta;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            } else if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            updateMonthDisplay();
+            updateDashboard();
+        }
+
+        function updateMonthDisplay() {
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            document.getElementById('monthDisplay').textContent = `${months[currentMonth]} ${currentYear}`;
+        }
+
+        function updateDashboard() {
+            // Get events for current month
+            const monthEvents = appData.events.filter(e => {
+                const date = new Date(e.eventDate);
+                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+            });
+
+            // Get expenses for current month
+            const monthExpenses = appData.expenses.filter(e => 
+                e.month === currentMonth && e.year === currentYear
+            );
+
+            // Calculate totals
+            const totalRevenue = monthEvents.reduce((sum, e) => sum + (e.netAmount || 0), 0);
+            const totalExpenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const netIncome = totalRevenue - totalExpenses;
+
+            // Total commissions
+            const totalCommissions = monthEvents.reduce((sum, e) => sum + (e.commission || 0), 0);
+
+            // RESICO calculation - taux mensuel sélectionné par l'utilisateur
+            const resicoRateEl = document.getElementById('dashResicoRate');
+            const resicoRate = resicoRateEl ? parseFloat(resicoRateEl.value) || 2.5 : 2.5;
+            const totalResicoTax = totalRevenue * (resicoRate / 100);
+            const netProfit = netIncome - totalResicoTax;
+
+            // Update UI
+            document.getElementById('dashEventCount').textContent = monthEvents.length;
+            document.getElementById('dashRevenue').textContent = formatCurrency(totalRevenue);
+            document.getElementById('dashExpenses').textContent = formatCurrency(totalExpenses);
+            document.getElementById('dashNet').textContent = formatCurrency(netIncome);
+
+            document.getElementById('dashResicoBase').textContent = formatCurrency(totalRevenue);
+            document.getElementById('dashResicoTax').textContent = formatCurrency(totalResicoTax);
+            document.getElementById('dashCommissions').textContent = formatCurrency(totalCommissions);
+            document.getElementById('dashNetProfit').textContent = formatCurrency(netProfit);
+
+            // Commission summary
+            const plannersMap = {};
+            monthEvents.forEach(e => {
+                if (e.hasPlanner && e.plannerName) {
+                    if (!plannersMap[e.plannerName]) {
+                        plannersMap[e.plannerName] = 0;
+                    }
+                    plannersMap[e.plannerName] += e.commission;
+                }
+            });
+
+            const commissionContainer = document.getElementById('commissionSummary');
+            if (Object.keys(plannersMap).length === 0) {
+                commissionContainer.innerHTML = '<p style="color: var(--text-medium); text-align: center;">Sin comisiones este mes</p>';
+            } else {
+                commissionContainer.innerHTML = Object.entries(plannersMap).map(([name, amount]) => `
+                    <div class="payment-row">
+                        <span class="payment-label">${name}</span>
+                        <span class="payment-value negative">${formatCurrency(amount)}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function updateQuickStats() {
+            const now = new Date();
+            const monthEvents = appData.events.filter(e => {
+                const date = new Date(e.eventDate);
+                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+            });
+
+            const monthExpenses = appData.expenses.filter(e => 
+                e.month === now.getMonth() && e.year === now.getFullYear()
+            );
+
+            const revenue = monthEvents.reduce((sum, e) => sum + e.netAmount, 0);
+            const expenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+            document.getElementById('quickEventCount').textContent = monthEvents.length;
+            document.getElementById('quickRevenue').textContent = formatCurrency(revenue);
+            document.getElementById('quickExpenses').textContent = formatCurrency(expenses);
+            document.getElementById('quickNet').textContent = formatCurrency(revenue - expenses);
+        }
+
+        // ==================== UTILITIES ====================
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('es-MX', { 
+                weekday: 'short', 
+                day: 'numeric', 
+                month: 'short',
+                year: 'numeric'
+            });
+        }
+
+        function contactWhatsApp(phone, name) {
+            const cleanPhone = phone.replace(/\D/g, '');
+            const message = encodeURIComponent(`Hola ${name}, te escribo de Dulces Momentos 🎂`);
+            window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+        }
+
+        function sendMonthlyReport() {
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            
+            const monthEvents = appData.events.filter(e => {
+                const date = new Date(e.eventDate);
+                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+            });
+
+            const monthExpenses = appData.expenses.filter(e => 
+                e.month === currentMonth && e.year === currentYear
+            );
+
+            const revenue = monthEvents.reduce((sum, e) => sum + e.netAmount, 0);
+            const expenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+            const report = `
+📊 *Reporte Dulces Momentos*
+📅 ${months[currentMonth]} ${currentYear}
+
+📋 Eventos: ${monthEvents.length}
+💰 Ingresos: ${formatCurrency(revenue)}
+💸 Gastos: ${formatCurrency(expenses)}
+✅ Neto: ${formatCurrency(revenue - expenses)}
+            `.trim();
+
+            const encoded = encodeURIComponent(report);
+            window.open(`https://wa.me/?text=${encoded}`, '_blank');
+        }
+    </script>
 </body>
 </html>

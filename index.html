@@ -386,8 +386,7 @@ function render(){
     else if(S.view==='detail')h=rDetail();
     else if(S.view==='form')h=rForm();
     else if(S.view==='settings')h=rSettings();
-    if(['home','calendar','dashboard','settings'].includes(S.view))h+='<div class="app">'+h+rTabs()+'</div>';
-    else h='<div class="app">'+h+'</div>';
+    if(['home','calendar','dashboard','settings'].includes(S.view))h+=rTabs();
   }
   document.getElementById('app').innerHTML=h;
 }

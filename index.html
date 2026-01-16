@@ -282,7 +282,28 @@ function addExpense(){
   render();
 }
 function rmExpense(i){state.form.expenses.splice(i,1);render();}
-function updExpense(i,k,v){state.form.expenses[i][k]=v;render();}
+function updExpense(i,k,v){state.form.expenses[i][k]=v;if(k==='amount')updateSummary();}
+
+function updateSummary(){
+  const el=document.getElementById('summaryBox');
+  if(!el)return;
+  const exp=expTotal(state.form.expenses);
+  const com=commission(state.form.totalAmount,state.form.plannerCommission);
+  const pr=(parseFloat(state.form.totalAmount)||0)-com-exp;
+  el.innerHTML=`<div style="font-size:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Ingreso</span><span>${fmt(state.form.totalAmount)}</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Comisión</span><span style="color:#ea580c">-${fmt(com)}</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Gastos</span><span style="color:#dc2626">-${fmt(exp)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.1)"><span>Ganancia</span><span style="color:#16a34a">${fmt(pr)}</span></div></div>`;
+}
+
+function populateForm(){
+  const f=state.form;
+  const fields={f_clientName:'clientName',f_clientPhone:'clientPhone',f_clientEmail:'clientEmail',f_eventDate:'eventDate',f_eventTime:'eventTime',f_location:'location',f_weddingPlanner:'weddingPlanner',f_plannerCommission:'plannerCommission',f_totalAmount:'totalAmount',f_depositAmount:'depositAmount',f_rfcCliente:'rfcCliente',f_notes:'notes'};
+  for(const[id,key]of Object.entries(fields)){
+    const el=document.getElementById(id);
+    if(el)el.value=f[key]||'';
+  }
+}
 
 async function markFactura(id){
   const ev=state.events.find(e=>e.id===id);
@@ -340,10 +361,10 @@ function rLogin(){
         <p class="login-subtitle">Inicia sesión para continuar</p>
         ${state.loginError?`<div class="login-error">${state.loginError}</div>`:''}
         <div class="login-input">
-          <input type="email" placeholder="Email" value="${state.loginEmail}" oninput="state.loginEmail=this.value;state.loginError='';render();">
+          <input type="email" placeholder="Email" id="loginEmail" oninput="state.loginEmail=this.value;state.loginError='';">
         </div>
         <div class="login-input">
-          <input type="password" placeholder="Contraseña" value="${state.loginPassword}" oninput="state.loginPassword=this.value;state.loginError='';render();" onkeypress="if(event.key==='Enter')login();">
+          <input type="password" placeholder="Contraseña" id="loginPassword" oninput="state.loginPassword=this.value;state.loginError='';" onkeypress="if(event.key==='Enter')login();">
         </div>
         <button onclick="login();" class="login-btn" ${!state.loginEmail||!state.loginPassword?'disabled':''}>
           Entrar
@@ -378,7 +399,7 @@ function rHome(){
         <button onclick="state.showSearch=!state.showSearch;render();" style="padding:8px;background:#f3f4f6;border-radius:50%">${ic.search}</button>
       </div>
       ${rSync()}
-      ${state.showSearch?`<div style="margin-top:12px"><input placeholder="Buscar..." value="${state.search}" oninput="state.search=this.value;render();"></div>`:''}
+      ${state.showSearch?`<div style="margin-top:12px"><input placeholder="Buscar..." id="searchInput" oninput="state.search=this.value;renderList();"></div>`:''}
     </div>
     <div style="padding:12px 20px;background:white;border-bottom:1px solid #e5e7eb">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -559,27 +580,27 @@ function rForm(){
     </div>
     <div style="flex:1;overflow-y:auto;padding:16px 20px">
       <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Cliente</p>
-        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Nombre *</label><input value="${f.clientName}" oninput="state.form.clientName=this.value;" placeholder="María y Juan"></div>
-        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Teléfono</label><input type="tel" value="${f.clientPhone||''}" oninput="state.form.clientPhone=this.value;" placeholder="+52 777 123 4567"></div>
-        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Email</label><input type="email" value="${f.clientEmail||''}" oninput="state.form.clientEmail=this.value;" placeholder="cliente@email.com"></div>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Nombre *</label><input id="f_clientName" oninput="state.form.clientName=this.value;" placeholder="María y Juan"></div>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Teléfono</label><input type="tel" id="f_clientPhone" oninput="state.form.clientPhone=this.value;" placeholder="+52 777 123 4567"></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Email</label><input type="email" id="f_clientEmail" oninput="state.form.clientEmail=this.value;" placeholder="cliente@email.com"></div>
       </div>
       <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Evento</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-          <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Fecha *</label><input type="date" value="${f.eventDate}" oninput="state.form.eventDate=this.value;"></div>
-          <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Hora</label><input type="time" value="${f.eventTime}" oninput="state.form.eventTime=this.value;"></div>
+          <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Fecha *</label><input type="date" id="f_eventDate" oninput="state.form.eventDate=this.value;"></div>
+          <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Hora</label><input type="time" id="f_eventTime" oninput="state.form.eventTime=this.value;"></div>
         </div>
-        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Lugar *</label><input value="${f.location}" oninput="state.form.location=this.value;" placeholder="Hacienda Cortés"></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Lugar *</label><input id="f_location" oninput="state.form.location=this.value;" placeholder="Hacienda Cortés"></div>
       </div>
       <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Wedding Planner</p>
-        <div style="margin-bottom:12px"><input value="${f.weddingPlanner}" oninput="state.form.weddingPlanner=this.value;" placeholder="Nombre del planner"></div>
-        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Comisión %</label><input type="number" min="0" max="100" value="${f.plannerCommission}" oninput="state.form.plannerCommission=parseFloat(this.value)||0;render();"></div>
+        <div style="margin-bottom:12px"><input id="f_weddingPlanner" oninput="state.form.weddingPlanner=this.value;" placeholder="Nombre del planner"></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Comisión %</label><input type="number" min="0" max="100" id="f_plannerCommission" oninput="state.form.plannerCommission=parseFloat(this.value)||0;updateSummary();"></div>
       </div>
       <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Servicios</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${serviceTypes.map(s=>`<button onclick="const i=state.form.services.indexOf('${s.id}');if(i>-1)state.form.services.splice(i,1);else state.form.services.push('${s.id}');render();" class="service-btn ${f.services.includes(s.id)?'active':''}"><span style="font-size:20px">${s.icon}</span><span style="font-size:14px;font-weight:500">${s.label}</span>${f.services.includes(s.id)?`<span style="margin-left:auto;color:#f43f5e;width:16px;height:16px">${ic.check}</span>`:''}</button>`).join('')}</div>
       </div>
       <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Pago</p>
-        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Monto Total *</label><input type="number" min="0" value="${f.totalAmount}" oninput="state.form.totalAmount=this.value;render();" placeholder="$ MXN"></div>
-        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Anticipo</label><input type="number" min="0" value="${f.depositAmount}" oninput="state.form.depositAmount=this.value;" placeholder="$ MXN"></div>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Monto Total *</label><input type="number" min="0" id="f_totalAmount" oninput="state.form.totalAmount=this.value;updateSummary();" placeholder="$ MXN"></div>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Anticipo</label><input type="number" min="0" id="f_depositAmount" oninput="state.form.depositAmount=this.value;" placeholder="$ MXN"></div>
         <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:8px">Estado</label><div style="display:flex;gap:8px">${paymentStatuses.map(s=>`<button onclick="state.form.paymentStatus='${s.id}';render();" style="flex:1;padding:12px;border-radius:12px;font-size:14px;font-weight:500;background:${f.paymentStatus===s.id?'#111827':'#f3f4f6'};color:${f.paymentStatus===s.id?'white':'#4b5563'}">${s.label}</button>`).join('')}</div></div>
       </div>
       <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase">Gastos</p><button onclick="addExpense();" style="font-size:14px;color:#f43f5e;font-weight:500">+ Agregar</button></div>
@@ -591,17 +612,17 @@ function rForm(){
         </div>`).join('')}
         ${f.expenses&&f.expenses.length?`<div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb"><span style="font-weight:500">Total Gastos</span><span style="font-weight:700;color:#dc2626">${fmt(exp)}</span></div>`:''}
       </div>
-      ${f.totalAmount?`<div class="card" style="background:linear-gradient(135deg,#fff1f2,#fffbeb)"><h4 style="font-weight:600;margin-bottom:8px">Resumen</h4>
-        <div style="font-size:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Ingreso</span><span>${fmt(f.totalAmount)}</span></div>
+      <div class="card" style="background:linear-gradient(135deg,#fff1f2,#fffbeb)"><h4 style="font-weight:600;margin-bottom:8px">Resumen</h4>
+        <div id="summaryBox" style="font-size:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Ingreso</span><span>${fmt(f.totalAmount)}</span></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Comisión</span><span style="color:#ea580c">-${fmt(com)}</span></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Gastos</span><span style="color:#dc2626">-${fmt(exp)}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.1)"><span>Ganancia</span><span style="color:#16a34a">${fmt(pr)}</span></div></div>
       </div>`:''}
       <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Facturación</p>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:20px">📄</span><span style="font-weight:500">Factura emitida</span></div><button onclick="state.form.facturaEmitida=!state.form.facturaEmitida;render();" class="toggle ${f.facturaEmitida?'active':''}"><div class="toggle-knob"></div></button></div>
-        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">RFC Cliente</label><input value="${f.rfcCliente||''}" oninput="state.form.rfcCliente=this.value.toUpperCase();" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:20px">📄</span><span style="font-weight:500">Factura emitida</span></div><button onclick="state.form.facturaEmitida=!state.form.facturaEmitida;this.parentElement.querySelector('.toggle').classList.toggle('active');" class="toggle ${f.facturaEmitida?'active':''}"><div class="toggle-knob"></div></button></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">RFC Cliente</label><input id="f_rfcCliente" oninput="state.form.rfcCliente=this.value.toUpperCase();" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
       </div>
-      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Notas</p><textarea rows="3" oninput="state.form.notes=this.value;" placeholder="Detalles adicionales..." style="resize:none">${f.notes||''}</textarea></div>
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Notas</p><textarea rows="3" id="f_notes" oninput="state.form.notes=this.value;" placeholder="Detalles adicionales..." style="resize:none"></textarea></div>
     </div>`;
 }
 
@@ -672,6 +693,9 @@ function render(){
     }
   }
   document.getElementById('app').innerHTML=html;
+  
+  // Populate form fields after render
+  if(state.view==='form')setTimeout(populateForm,0);
 }
 
 // Initial render

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Dulces Momentos">
+    <meta name="apple-mobile-web-app-title" content="La Petite Parisienne">
     <meta name="theme-color" content="#d4a574">
-    <title>Dulces Momentos - Gestión de Eventos</title>
+    <title>La Petite Parisienne - Gestión de Eventos</title>
     
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -996,7 +996,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loadingScreen" class="loading-screen">
-        <div class="loading-logo">🎂</div>
+        <div class="loading-logo">🥐</div>
         <div class="loading-spinner"></div>
     </div>
 
@@ -1004,8 +1004,8 @@
     <div id="loginScreen" class="login-container" style="display: none;">
         <div class="login-box">
             <div class="login-logo-container">
-                <div class="login-logo-icon">🎂</div>
-                <h1 class="login-title">Dulces Momentos</h1>
+                <div class="login-logo-icon">🥐</div>
+                <h1 class="login-title">La Petite Parisienne</h1>
                 <p class="login-subtitle">Inicia sesión para continuar</p>
             </div>
             <div class="login-form">
@@ -1031,7 +1031,7 @@
                 <span id="syncText">Guardado ☁️</span>
             </div>
         </div>
-        <h1>🎂 Dulces Momentos</h1>
+        <h1>🥐 La Petite Parisienne</h1>
         <p class="header-subtitle">Gestión de Eventos y Catering</p>
         <button onclick="logout()" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer;">Salir</button>
     </header>
@@ -1144,7 +1144,7 @@
         <section id="newEvent" class="section">
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">✨ Nuevo Evento</h3>
+                    <h3 class="card-title" id="formTitle">✨ Nuevo Evento</h3>
                 </div>
 
                 <div class="form-group">
@@ -1232,7 +1232,7 @@
                 </div>
 
                 <div class="toggle-group">
-                    <span class="toggle-label">Wedding Planner (Comisión 10%)</span>
+                    <span class="toggle-label">¿Hay Wedding Planner?</span>
                     <label class="toggle">
                         <input type="checkbox" id="hasPlanner" onchange="togglePlannerFields()">
                         <span class="toggle-slider"></span>
@@ -1253,7 +1253,7 @@
                 </div>
 
                 <div class="amount-display">
-                    <div class="amount-label">Monto a Cobrar (después comisión)</div>
+                    <div class="amount-label">Total a Cobrar</div>
                     <div class="amount-value" id="netAmount">$0</div>
                 </div>
 
@@ -1265,9 +1265,9 @@
                     <span class="payment-label">Liquidación (50%)</span>
                     <span class="payment-value" id="finalAmount">$0</span>
                 </div>
-                <div class="payment-row" id="commissionRow" style="display: none;">
-                    <span class="payment-label">Comisión Planner</span>
-                    <span class="payment-value negative" id="commissionAmount">$0</span>
+                <div class="payment-row" id="commissionRow" style="display: none; background: #fff8e6; padding: 12px; border-radius: 8px; margin-top: 10px;">
+                    <span class="payment-label">🤝 Comisión Planner (a pagar después)</span>
+                    <span class="payment-value" id="commissionAmount" style="color: var(--warning);">$0</span>
                 </div>
             </div>
 
@@ -1275,25 +1275,25 @@
             <div class="card resico-card">
                 <div class="resico-header">
                     <span class="resico-badge">RESICO</span>
-                    <h3 class="resico-title">Cálculo Fiscal</h3>
+                    <h3 class="resico-title">Resumen Financiero</h3>
                 </div>
                 
                 <div class="info-box">
                     <span class="info-box-icon">ℹ️</span>
-                    RESICO: Régimen Simplificado de Confianza. El ISR se calcula mensualmente en el Dashboard según tus ingresos acumulados.
+                    ISR RESICO mensual: 1% (hasta $25,000) | 1.5% ($25,001-$50,000) | 2% (más de $50,000). Se calcula en el Dashboard.
                 </div>
 
                 <div class="resico-info">
                     <div class="resico-item">
-                        <div class="resico-item-label">Ingreso Bruto</div>
+                        <div class="resico-item-label">Total Evento</div>
                         <div class="resico-item-value" id="resicoGross">$0</div>
                     </div>
                     <div class="resico-item">
                         <div class="resico-item-label">Comisión Planner</div>
-                        <div class="resico-item-value tax" id="resicoCommission">$0</div>
+                        <div class="resico-item-value" id="resicoCommission" style="color: var(--warning);">$0</div>
                     </div>
                     <div class="resico-item">
-                        <div class="resico-item-label">Neto (sin impuestos)</div>
+                        <div class="resico-item-label">Tú Recibes</div>
                         <div class="resico-item-value net" id="resicoNet">$0</div>
                     </div>
                 </div>
@@ -1381,29 +1381,23 @@
                     <h3 class="resico-title">Impuestos del Mes</h3>
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Tasa RESICO Mensual (%)</label>
-                    <select class="form-select" id="dashResicoRate" onchange="updateDashboard()">
-                        <option value="1">1% (hasta $300,000 anuales)</option>
-                        <option value="1.1">1.1% ($300,001 - $600,000)</option>
-                        <option value="1.5">1.5% ($600,001 - $1,000,000)</option>
-                        <option value="2">2% ($1,000,001 - $2,500,000)</option>
-                        <option value="2.5" selected>2.5% ($2,500,001 - $3,500,000)</option>
-                    </select>
+                <div class="info-box">
+                    <span class="info-box-icon">ℹ️</span>
+                    ISR RESICO mensual: 1% (hasta $25,000) | 1.5% ($25,001-$50,000) | 2% (más de $50,000). Pagar antes del día 17 del mes siguiente.
                 </div>
                 
                 <div class="resico-info">
                     <div class="resico-item">
-                        <div class="resico-item-label">Base Gravable</div>
+                        <div class="resico-item-label">Ingresos del Mes</div>
                         <div class="resico-item-value" id="dashResicoBase">$0</div>
                     </div>
                     <div class="resico-item">
-                        <div class="resico-item-label">ISR RESICO</div>
-                        <div class="resico-item-value tax" id="dashResicoTax">$0</div>
+                        <div class="resico-item-label">Tasa Aplicable</div>
+                        <div class="resico-item-value" id="dashResicoRate">0%</div>
                     </div>
                     <div class="resico-item">
-                        <div class="resico-item-label">Comisiones</div>
-                        <div class="resico-item-value tax" id="dashCommissions">$0</div>
+                        <div class="resico-item-label">ISR a Pagar</div>
+                        <div class="resico-item-value tax" id="dashResicoTax">$0</div>
                     </div>
                     <div class="resico-item">
                         <div class="resico-item-label">Utilidad Neta</div>
@@ -1827,6 +1821,12 @@
         function clearFormData() {
             formData.newEvent = {};
             selectedServices = [];
+            editingEventId = null; // Reset editing state
+            
+            // Reset form title
+            const formTitleEl = document.getElementById('formTitle');
+            if (formTitleEl) formTitleEl.textContent = '✨ Nuevo Evento';
+            
             document.getElementById('clientName').value = '';
             document.getElementById('clientPhone').value = '';
             document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
@@ -1841,6 +1841,7 @@
             document.querySelectorAll('.service-card').forEach(card => card.classList.remove('selected'));
             document.getElementById('plannerFields').style.display = 'none';
             document.getElementById('commissionRow').style.display = 'none';
+            document.getElementById('otherVenueGroup').style.display = 'none';
             calculatePayments();
         }
 
@@ -1953,24 +1954,24 @@
             const hasPlanner = document.getElementById('hasPlanner').checked;
             const commissionRate = parseFloat(document.getElementById('commissionRate').value) || 10;
 
-            // Calculate commission
+            // Commission is just INFO - not deducted from your price
             const commission = hasPlanner ? totalPrice * (commissionRate / 100) : 0;
-            const netAfterCommission = totalPrice - commission;
+            const netAmount = totalPrice; // You receive the full price
 
-            // Calculate 50/50 split
-            const deposit = netAfterCommission / 2;
-            const final = netAfterCommission / 2;
+            // Calculate 50/50 split based on total price
+            const deposit = totalPrice / 2;
+            const final = totalPrice / 2;
 
             // Update UI
-            document.getElementById('netAmount').textContent = formatCurrency(netAfterCommission);
+            document.getElementById('netAmount').textContent = formatCurrency(netAmount);
             document.getElementById('depositAmount').textContent = formatCurrency(deposit);
             document.getElementById('finalAmount').textContent = formatCurrency(final);
             document.getElementById('commissionAmount').textContent = formatCurrency(commission);
 
-            // RESICO UI (simplifié - pas d'IVA, ISR calculé mensuellement)
+            // RESICO UI
             document.getElementById('resicoGross').textContent = formatCurrency(totalPrice);
             document.getElementById('resicoCommission').textContent = formatCurrency(commission);
-            document.getElementById('resicoNet').textContent = formatCurrency(netAfterCommission);
+            document.getElementById('resicoNet').textContent = formatCurrency(netAmount);
         }
 
         function formatCurrency(amount) {
@@ -1991,8 +1992,6 @@
 
             const hasPlanner = document.getElementById('hasPlanner').checked;
             const commissionRate = parseFloat(document.getElementById('commissionRate').value) || 10;
-            const commission = hasPlanner ? totalPrice * (commissionRate / 100) : 0;
-            const netAmount = totalPrice - commission;
 
             let venue = document.getElementById('eventVenue').value;
             if (venue === 'Otro') {
@@ -2008,6 +2007,56 @@
                 }
             });
 
+            // Check if we're editing or creating
+            if (editingEventId) {
+                // UPDATE existing event
+                const eventIndex = appData.events.findIndex(e => e.id === editingEventId);
+                if (eventIndex !== -1) {
+                    const existingEvent = appData.events[eventIndex];
+                    
+                    // Commission is just INFO - not deducted
+                    const commission = hasPlanner ? totalPrice * (commissionRate / 100) : 0;
+                    const netAmount = totalPrice; // Full price
+                    
+                    const updatedEvent = {
+                        ...existingEvent,
+                        clientName,
+                        clientPhone,
+                        eventDate,
+                        venue,
+                        guestCount: parseInt(document.getElementById('guestCount').value) || 0,
+                        services: [...selectedServices],
+                        serviceDetails,
+                        totalPrice,
+                        netAmount,
+                        deposit: totalPrice / 2,
+                        final: totalPrice / 2,
+                        hasPlanner,
+                        plannerName: hasPlanner ? document.getElementById('plannerName').value : '',
+                        commissionRate: hasPlanner ? commissionRate : 0,
+                        commission,
+                        notes: document.getElementById('eventNotes').value,
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    appData.events[eventIndex] = updatedEvent;
+                    saveData();
+                    saveEventToFirebase(updatedEvent);
+                    
+                    editingEventId = null;
+                    clearFormData();
+                    
+                    alert('✅ Evento actualizado exitosamente!');
+                    showEventDetail(updatedEvent.id);
+                    return;
+                }
+            }
+
+            // CREATE new event
+            // Commission is just INFO - not deducted
+            const commission = hasPlanner ? totalPrice * (commissionRate / 100) : 0;
+            const netAmount = totalPrice; // Full price
+            
             const event = {
                 id: 'local_' + Date.now().toString(),
                 clientName,
@@ -2018,15 +2067,16 @@
                 services: [...selectedServices],
                 serviceDetails,
                 totalPrice,
-                netAmount,
-                deposit: netAmount / 2,
-                final: netAmount / 2,
+                netAmount, // Same as totalPrice
+                deposit: totalPrice / 2,
+                final: totalPrice / 2,
                 hasPlanner,
                 plannerName: hasPlanner ? document.getElementById('plannerName').value : '',
                 commissionRate: hasPlanner ? commissionRate : 0,
                 commission,
+                commissionPaid: false, // Track if commission was paid to planner
                 notes: document.getElementById('eventNotes').value,
-                status: 'pending', // pending, partial, paid
+                status: 'pending',
                 depositPaid: false,
                 finalPaid: false,
                 createdAt: new Date().toISOString()
@@ -2118,7 +2168,7 @@
                 otro: '📦 Otro'
             };
 
-            const servicesHtml = event.services.map(s => `
+            const servicesHtml = (event.services || []).map(s => `
                 <div style="background: var(--primary-light); padding: 8px 12px; border-radius: 8px; margin: 4px;">
                     ${serviceNames[s] || s}
                     ${event.serviceDetails && event.serviceDetails[s] ? `<br><small style="color: var(--text-medium);">${event.serviceDetails[s]}</small>` : ''}
@@ -2171,22 +2221,6 @@
                         <div class="amount-value">${formatCurrency(event.totalPrice)}</div>
                     </div>
 
-                    ${event.hasPlanner ? `
-                        <div class="payment-row">
-                            <span class="payment-label">🤝 Comisión (${event.commissionRate}%)</span>
-                            <span class="payment-value negative">-${formatCurrency(event.commission)}</span>
-                        </div>
-                        <div class="payment-row">
-                            <span class="payment-label">Planner: ${event.plannerName}</span>
-                            <span class="payment-value"></span>
-                        </div>
-                    ` : ''}
-
-                    <div class="payment-row" style="border-top: 2px solid var(--border); padding-top: 15px; margin-top: 10px;">
-                        <span class="payment-label">💵 Neto a Cobrar</span>
-                        <span class="payment-value" style="font-size: 1.2rem;">${formatCurrency(event.netAmount)}</span>
-                    </div>
-
                     <div style="margin-top: 20px;">
                         <div class="toggle-group" onclick="togglePayment('${event.id}', 'deposit')">
                             <span class="toggle-label">Anticipo (50%): ${formatCurrency(event.deposit)}</span>
@@ -2197,32 +2231,20 @@
                             <span style="font-size: 1.5rem;">${event.finalPaid ? '✅' : '⬜'}</span>
                         </div>
                     </div>
-                </div>
 
-                <!-- RESICO Card -->
-                <div class="card resico-card">
-                    <div class="resico-header">
-                        <span class="resico-badge">RESICO</span>
-                        <h3 class="resico-title">Resumen Financiero</h3>
-                    </div>
-                    <div class="resico-info">
-                        <div class="resico-item">
-                            <div class="resico-item-label">Ingreso Bruto</div>
-                            <div class="resico-item-value">${formatCurrency(event.totalPrice)}</div>
+                    ${event.hasPlanner ? `
+                        <div style="margin-top: 20px; padding: 15px; background: #fff8e6; border-radius: 12px; border: 1px solid #f0d78c;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--text-dark);">🤝 Comisión ${event.plannerName}</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-medium);">${event.commissionRate}% = ${formatCurrency(event.commission)}</div>
+                                </div>
+                                <div onclick="toggleCommissionPaid('${event.id}')" style="cursor: pointer; font-size: 1.5rem;">
+                                    ${event.commissionPaid ? '✅' : '⬜'}
+                                </div>
+                            </div>
                         </div>
-                        <div class="resico-item">
-                            <div class="resico-item-label">Comisión Planner</div>
-                            <div class="resico-item-value tax">${formatCurrency(event.commission || 0)}</div>
-                        </div>
-                        <div class="resico-item">
-                            <div class="resico-item-label">Neto a Cobrar</div>
-                            <div class="resico-item-value net">${formatCurrency(event.netAmount)}</div>
-                        </div>
-                        <div class="resico-item">
-                            <div class="resico-item-label">ISR</div>
-                            <div class="resico-item-value" style="color: var(--text-medium);">Ver Dashboard</div>
-                        </div>
-                    </div>
+                    ` : ''}
                 </div>
 
                 ${event.notes ? `
@@ -2239,6 +2261,10 @@
                         📱 Contactar por WhatsApp
                     </button>
                 ` : ''}
+
+                <button class="btn btn-primary" style="margin-top: 10px;" onclick="editEvent('${event.id}')">
+                    ✏️ Modificar Evento
+                </button>
 
                 <button class="btn btn-danger" style="margin-top: 10px;" onclick="deleteEvent('${event.id}')">
                     🗑️ Eliminar Evento
@@ -2276,6 +2302,17 @@
             showEventDetail(eventId);
         }
 
+        function toggleCommissionPaid(eventId) {
+            const event = appData.events.find(e => e.id === eventId);
+            if (!event) return;
+
+            event.commissionPaid = !event.commissionPaid;
+
+            saveData();
+            saveEventToFirebase(event);
+            showEventDetail(eventId);
+        }
+
         function deleteEvent(eventId) {
             if (confirm('¿Estás seguro de eliminar este evento?')) {
                 appData.events = appData.events.filter(e => e.id !== eventId);
@@ -2283,6 +2320,78 @@
                 deleteEventFromFirebase(eventId);
                 showSection('events');
             }
+        }
+
+        // Variable to track if we're editing
+        let editingEventId = null;
+
+        function editEvent(eventId) {
+            const event = appData.events.find(e => e.id === eventId);
+            if (!event) return;
+
+            editingEventId = eventId;
+
+            // Update form title
+            document.getElementById('formTitle').textContent = '✏️ Modificar Evento';
+
+            // Fill the form with event data (don't clear first!)
+            document.getElementById('clientName').value = event.clientName || '';
+            document.getElementById('clientPhone').value = event.clientPhone || '';
+            document.getElementById('eventDate').value = event.eventDate || '';
+            document.getElementById('guestCount').value = event.guestCount || '';
+            document.getElementById('totalPrice').value = event.totalPrice || '';
+            document.getElementById('eventNotes').value = event.notes || '';
+            
+            // Venue
+            const venueSelect = document.getElementById('eventVenue');
+            const knownVenues = ['Finca Paraíso', 'Hacienda de Cortés', 'Jardín Borda'];
+            if (knownVenues.includes(event.venue)) {
+                venueSelect.value = event.venue;
+                document.getElementById('otherVenueGroup').style.display = 'none';
+            } else if (event.venue) {
+                venueSelect.value = 'Otro';
+                document.getElementById('otherVenue').value = event.venue;
+                document.getElementById('otherVenueGroup').style.display = 'block';
+            } else {
+                venueSelect.value = '';
+                document.getElementById('otherVenueGroup').style.display = 'none';
+            }
+
+            // Planner
+            document.getElementById('hasPlanner').checked = event.hasPlanner || false;
+            document.getElementById('plannerName').value = event.plannerName || '';
+            document.getElementById('commissionRate').value = event.commissionRate || 10;
+            
+            // Show/hide planner fields
+            document.getElementById('plannerFields').style.display = event.hasPlanner ? 'block' : 'none';
+            document.getElementById('commissionRow').style.display = event.hasPlanner ? 'flex' : 'none';
+
+            // Services
+            selectedServices = event.services || [];
+            document.querySelectorAll('.service-card').forEach(card => {
+                if (selectedServices.includes(card.dataset.service)) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+            updateServiceDetails();
+
+            // Restore service details
+            if (event.serviceDetails) {
+                Object.entries(event.serviceDetails).forEach(([service, detail]) => {
+                    const detailInput = document.getElementById(`service_${service}_details`);
+                    if (detailInput) {
+                        detailInput.value = detail;
+                    }
+                });
+            }
+
+            // Calculate payments
+            calculatePayments();
+
+            // Show form
+            showSection('newEvent');
         }
 
         // ==================== EXPENSES ====================
@@ -2413,17 +2522,18 @@
                 e.month === currentMonth && e.year === currentYear
             );
 
-            // Calculate totals
-            const totalRevenue = monthEvents.reduce((sum, e) => sum + (e.netAmount || 0), 0);
+            // Calculate totals - netAmount = totalPrice (no deduction)
+            const totalRevenue = monthEvents.reduce((sum, e) => sum + (e.totalPrice || e.netAmount || 0), 0);
             const totalExpenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
             const netIncome = totalRevenue - totalExpenses;
 
-            // Total commissions
-            const totalCommissions = monthEvents.reduce((sum, e) => sum + (e.commission || 0), 0);
-
-            // RESICO calculation - taux mensuel sélectionné par l'utilisateur
-            const resicoRateEl = document.getElementById('dashResicoRate');
-            const resicoRate = resicoRateEl ? parseFloat(resicoRateEl.value) || 2.5 : 2.5;
+            // RESICO calculation - taux selon tranches mensuelles
+            let resicoRate = 1;
+            if (totalRevenue > 50000) {
+                resicoRate = 2;
+            } else if (totalRevenue > 25000) {
+                resicoRate = 1.5;
+            }
             const totalResicoTax = totalRevenue * (resicoRate / 100);
             const netProfit = netIncome - totalResicoTax;
 
@@ -2434,32 +2544,103 @@
             document.getElementById('dashNet').textContent = formatCurrency(netIncome);
 
             document.getElementById('dashResicoBase').textContent = formatCurrency(totalRevenue);
+            document.getElementById('dashResicoRate').textContent = resicoRate + '%';
             document.getElementById('dashResicoTax').textContent = formatCurrency(totalResicoTax);
-            document.getElementById('dashCommissions').textContent = formatCurrency(totalCommissions);
             document.getElementById('dashNetProfit').textContent = formatCurrency(netProfit);
 
-            // Commission summary
-            const plannersMap = {};
+            // Commission summary - GROUP by planner name (case insensitive)
+            const plannerGroups = {};
             monthEvents.forEach(e => {
-                if (e.hasPlanner && e.plannerName) {
-                    if (!plannersMap[e.plannerName]) {
-                        plannersMap[e.plannerName] = 0;
+                if (e.hasPlanner && e.commission > 0) {
+                    // Normalize planner name: trim, lowercase for grouping
+                    const normalizedName = (e.plannerName || 'Sin nombre').trim().toLowerCase();
+                    const displayName = e.plannerName || 'Sin nombre';
+                    
+                    if (!plannerGroups[normalizedName]) {
+                        plannerGroups[normalizedName] = {
+                            displayName: displayName,
+                            events: []
+                        };
                     }
-                    plannersMap[e.plannerName] += e.commission;
+                    plannerGroups[normalizedName].events.push({
+                        eventId: e.id,
+                        clientName: e.clientName,
+                        commission: e.commission,
+                        commissionPaid: e.commissionPaid || false
+                    });
                 }
             });
 
             const commissionContainer = document.getElementById('commissionSummary');
-            if (Object.keys(plannersMap).length === 0) {
+            if (Object.keys(plannerGroups).length === 0) {
                 commissionContainer.innerHTML = '<p style="color: var(--text-medium); text-align: center;">Sin comisiones este mes</p>';
             } else {
-                commissionContainer.innerHTML = Object.entries(plannersMap).map(([name, amount]) => `
-                    <div class="payment-row">
-                        <span class="payment-label">${name}</span>
-                        <span class="payment-value negative">${formatCurrency(amount)}</span>
+                let totalCommissions = 0;
+                let paidCommissions = 0;
+                
+                let html = '';
+                
+                Object.values(plannerGroups).forEach(group => {
+                    const groupTotal = group.events.reduce((sum, e) => sum + e.commission, 0);
+                    const groupPaid = group.events.filter(e => e.commissionPaid).reduce((sum, e) => sum + e.commission, 0);
+                    const allPaid = group.events.every(e => e.commissionPaid);
+                    
+                    totalCommissions += groupTotal;
+                    paidCommissions += groupPaid;
+                    
+                    html += `
+                        <div style="background: ${allPaid ? '#e8f5e9' : '#fff8e6'}; padding: 12px; border-radius: 10px; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-weight: 700; font-size: 1rem;">🤝 ${group.displayName}</span>
+                                <span style="font-weight: 700; color: ${allPaid ? 'var(--success)' : 'var(--warning)'};">${formatCurrency(groupTotal)}</span>
+                            </div>
+                            ${group.events.map(e => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid rgba(0,0,0,0.1);">
+                                    <span style="font-size: 0.85rem; color: var(--text-medium);">${e.clientName}</span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 0.85rem;">${formatCurrency(e.commission)}</span>
+                                        <span onclick="toggleCommissionPaidFromDashboard('${e.eventId}')" style="cursor: pointer; font-size: 1.2rem;">
+                                            ${e.commissionPaid ? '✅' : '⬜'}
+                                        </span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                });
+                
+                const pendingCommissions = totalCommissions - paidCommissions;
+                
+                html += `
+                    <div style="border-top: 2px solid var(--border); margin-top: 10px; padding-top: 15px;">
+                        <div class="payment-row">
+                            <span class="payment-label" style="font-weight: 700;">Total Comisiones</span>
+                            <span class="payment-value" style="font-weight: 700;">${formatCurrency(totalCommissions)}</span>
+                        </div>
+                        <div class="payment-row">
+                            <span class="payment-label" style="color: var(--success);">✅ Pagado</span>
+                            <span class="payment-value" style="color: var(--success);">${formatCurrency(paidCommissions)}</span>
+                        </div>
+                        <div class="payment-row">
+                            <span class="payment-label" style="color: var(--warning);">⬜ Pendiente</span>
+                            <span class="payment-value" style="color: var(--warning);">${formatCurrency(pendingCommissions)}</span>
+                        </div>
                     </div>
-                `).join('');
+                `;
+                
+                commissionContainer.innerHTML = html;
             }
+        }
+
+        function toggleCommissionPaidFromDashboard(eventId) {
+            const event = appData.events.find(e => e.id === eventId);
+            if (!event) return;
+
+            event.commissionPaid = !event.commissionPaid;
+
+            saveData();
+            saveEventToFirebase(event);
+            updateDashboard();
         }
 
         function updateQuickStats() {
@@ -2473,7 +2654,7 @@
                 e.month === now.getMonth() && e.year === now.getFullYear()
             );
 
-            const revenue = monthEvents.reduce((sum, e) => sum + e.netAmount, 0);
+            const revenue = monthEvents.reduce((sum, e) => sum + (e.totalPrice || e.netAmount || 0), 0);
             const expenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
             document.getElementById('quickEventCount').textContent = monthEvents.length;
@@ -2495,7 +2676,7 @@
 
         function contactWhatsApp(phone, name) {
             const cleanPhone = phone.replace(/\D/g, '');
-            const message = encodeURIComponent(`Hola ${name}, te escribo de Dulces Momentos 🎂`);
+            const message = encodeURIComponent(`Hola ${name}, te escribo de La Petite Parisienne 🥐`);
             window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
         }
 
@@ -2512,11 +2693,11 @@
                 e.month === currentMonth && e.year === currentYear
             );
 
-            const revenue = monthEvents.reduce((sum, e) => sum + e.netAmount, 0);
+            const revenue = monthEvents.reduce((sum, e) => sum + (e.totalPrice || e.netAmount || 0), 0);
             const expenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
             const report = `
-📊 *Reporte Dulces Momentos*
+🥐 *Reporte La Petite Parisienne*
 📅 ${months[currentMonth]} ${currentYear}
 
 📋 Eventos: ${monthEvents.length}

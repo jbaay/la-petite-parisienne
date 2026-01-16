@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="La Petite Parisienne">
+  <meta name="theme-color" content="#f43f5e">
+  <title>La Petite Parisienne</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:#f9fafb;min-height:100vh;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+    input,textarea,select{-webkit-user-select:text;user-select:text;font-size:16px;font-family:inherit;border:none;background:#f3f4f6;padding:12px 16px;border-radius:12px;width:100%;outline:none}
+    input:focus,textarea:focus,select:focus{box-shadow:0 0 0 2px #fecdd3}
+    button{background:none;border:none;cursor:pointer;font-family:inherit;font-size:inherit}
+    button:active{transform:scale(0.97);opacity:0.9}
+    .app{min-height:100vh;display:flex;flex-direction:column;padding-bottom:80px}
+    .card{background:white;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+    .header{background:white;padding:16px 20px;border-bottom:1px solid #e5e7eb}
+    .tab-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid #e5e7eb;padding:8px 0;padding-bottom:calc(env(safe-area-inset-bottom) + 8px);z-index:100;display:flex;justify-content:space-around;align-items:center}
+    .tab-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 12px;color:#9ca3af}
+    .tab-btn.active{color:#f43f5e}
+    .tab-btn svg{width:24px;height:24px}
+    .tab-btn span{font-size:10px;font-weight:500}
+    .add-btn{width:56px;height:56px;background:linear-gradient(135deg,#f43f5e,#ec4899);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-28px;box-shadow:0 4px 12px rgba(244,63,94,0.4)}
+    .add-btn svg{width:28px;height:28px;stroke:white}
+    .status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+    .status-pendiente{background:#fef2f2;color:#dc2626}
+    .status-anticipo{background:#fffbeb;color:#d97706}
+    .status-pagado{background:#f0fdf4;color:#16a34a}
+    .event-card{background:white;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
+    .event-card:active{transform:scale(0.98)}
+    .sync-indicator{display:flex;align-items:center;gap:6px;font-size:12px;color:#9ca3af}
+    .sync-indicator.synced{color:#22c55e}
+    .sync-indicator.syncing{color:#f59e0b}
+    .sync-indicator.error{color:#ef4444}
+    .sync-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+    .filter-btn{padding:8px 16px;border-radius:20px;font-size:14px;font-weight:500;background:#f3f4f6;color:#4b5563;white-space:nowrap}
+    .filter-btn.active{background:#111827;color:white}
+    .service-btn{padding:12px;border-radius:12px;display:flex;align-items:center;gap:8px;background:#f9fafb;border:2px solid transparent}
+    .service-btn.active{background:#fff1f2;border-color:#fda4af}
+    .expense-row{display:flex;align-items:center;gap:12px;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:8px}
+    .stat-card{background:white;border-radius:16px;padding:16px;text-align:center}
+    .chart-container{position:relative;height:200px}
+    .whatsapp-btn{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:white;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px}
+    .call-btn{display:inline-flex;align-items:center;gap:8px;background:#3b82f6;color:white;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px}
+    .progress-bar{height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden}
+    .progress-fill{height:100%;border-radius:4px}
+    .toggle{width:48px;height:28px;border-radius:14px;background:#d1d5db;position:relative}
+    .toggle.active{background:#22c55e}
+    .toggle-knob{position:absolute;top:4px;left:4px;width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:transform 0.2s}
+    .toggle.active .toggle-knob{transform:translateX(20px)}
+    .calendar-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;font-size:14px;font-weight:500;color:#374151}
+    .calendar-day.today{background:#f43f5e;color:white}
+    .calendar-day.has-events{background:#f3f4f6}
+    .calendar-dot{width:6px;height:6px;border-radius:50%;margin-top:2px}
+    .loading{position:fixed;inset:0;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .spinner{width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#f43f5e;border-radius:50%;animation:spin 0.8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div id="app" class="app"></div>
+<script>
+// Firebase
+firebase.initializeApp({
+  apiKey:"AIzaSyDueowWpJEKAuoYKrsS0ddRelxuspIfhTA",
+  authDomain:"la-petite-parisienne.firebaseapp.com",
+  projectId:"la-petite-parisienne",
+  storageBucket:"la-petite-parisienne.firebasestorage.app",
+  messagingSenderId:"377979404609",
+  appId:"1:377979404609:web:7b32a282f8201fdface1c0"
+});
+const db=firebase.firestore();
+
+// Data
+const serviceTypes=[
+  {id:'pastel',label:'Pastel',icon:'🎂'},
+  {id:'mesa_dulces',label:'Mesa Dulces',icon:'🍬'},
+  {id:'postres',label:'Postres',icon:'🧁'},
+  {id:'quesos',label:'Quesos',icon:'🧀'},
+  {id:'otro',label:'Otro',icon:'✨'}
+];
+const paymentStatuses=[
+  {id:'pendiente',label:'Pendiente'},
+  {id:'anticipo',label:'Anticipo'},
+  {id:'pagado',label:'Pagado'}
+];
+const expenseCategories=[
+  {id:'ingredientes',label:'Ingredientes',icon:'🥚'},
+  {id:'transporte',label:'Transporte',icon:'🚗'},
+  {id:'personal',label:'Personal',icon:'👨‍🍳'},
+  {id:'alquiler',label:'Alquiler',icon:'🍽️'},
+  {id:'otro',label:'Otro',icon:'📦'}
+];
+const resicoRates=[
+  {min:0,max:25000,rate:1},
+  {min:25000.01,max:50000,rate:1.1},
+  {min:50000.01,max:83333.33,rate:1.5},
+  {min:83333.33,max:208333.33,rate:2},
+  {min:208333.33,max:291666.67,rate:2.5}
+];
+
+// State
+let state={
+  events:[],
+  view:'home',
+  month:new Date(),
+  selected:null,
+  editing:null,
+  search:'',
+  filter:'all',
+  showSearch:false,
+  sync:'synced',
+  loading:true,
+  form:emptyForm(),
+  reportMonth:new Date().getMonth(),
+  reportYear:new Date().getFullYear()
+};
+let chart=null;
+
+function emptyForm(){
+  return{clientName:'',clientPhone:'',clientEmail:'',eventDate:'',eventTime:'',location:'',weddingPlanner:'',plannerCommission:10,services:[],totalAmount:'',depositAmount:'',paymentStatus:'pendiente',facturaEmitida:false,rfcCliente:'',expenses:[],notes:''};
+}
+
+// Firebase ops
+async function loadEvents(){
+  state.loading=true;state.sync='syncing';render();
+  try{
+    const snap=await db.collection('events').orderBy('eventDate','asc').get();
+    state.events=snap.docs.map(d=>({id:d.id,...d.data()}));
+    state.sync='synced';
+    localStorage.setItem('lpp-events',JSON.stringify(state.events));
+  }catch(e){
+    console.error(e);state.sync='error';
+    const local=localStorage.getItem('lpp-events');
+    if(local)state.events=JSON.parse(local);
+  }
+  state.loading=false;render();
+}
+
+async function saveEvent(data){
+  state.sync='syncing';render();
+  try{
+    if(data.id&&typeof data.id==='string'){
+      await db.collection('events').doc(data.id).set(data);
+    }else{
+      const ref=await db.collection('events').add(data);
+      data.id=ref.id;
+    }
+    const idx=state.events.findIndex(e=>e.id===data.id);
+    if(idx>=0)state.events[idx]=data;else state.events.push(data);
+    localStorage.setItem('lpp-events',JSON.stringify(state.events));
+    state.sync='synced';
+  }catch(e){console.error(e);state.sync='error';}
+  render();return data;
+}
+
+async function deleteEvent(id){
+  state.sync='syncing';render();
+  try{
+    await db.collection('events').doc(id).delete();
+    state.events=state.events.filter(e=>e.id!==id);
+    localStorage.setItem('lpp-events',JSON.stringify(state.events));
+    state.sync='synced';
+  }catch(e){console.error(e);state.sync='error';}
+  render();
+}
+
+// Helpers
+const fmt=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n||0);
+const fmtDate=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'}):'';
+const fmtDateLong=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):'';
+const commission=(t,p)=>(parseFloat(t)||0)*(parseFloat(p)||0)/100;
+const expTotal=exp=>(exp||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+const profit=ev=>(ev.totalAmount||0)-commission(ev.totalAmount,ev.plannerCommission)-expTotal(ev.expenses);
+const phoneWA=p=>p.replace(/\D/g,'');
+
+function monthStats(m,y){
+  const evs=state.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===m&&d.getFullYear()===y;});
+  const rev=evs.reduce((s,e)=>s+(e.totalAmount||0),0);
+  const exp=evs.reduce((s,e)=>s+expTotal(e.expenses),0);
+  const com=evs.reduce((s,e)=>s+commission(e.totalAmount,e.plannerCommission),0);
+  return{revenue:rev,expenses:exp,commissions:com,profit:rev-exp-com,count:evs.length};
+}
+
+function getDays(date){
+  const y=date.getFullYear(),m=date.getMonth();
+  const first=new Date(y,m,1),last=new Date(y,m+1,0);
+  const days=[];
+  for(let i=0;i<first.getDay();i++)days.push(null);
+  for(let i=1;i<=last.getDate();i++)days.push(new Date(y,m,i));
+  return days;
+}
+
+function eventsOn(date){
+  if(!date)return[];
+  const ds=date.toISOString().split('T')[0];
+  return state.events.filter(e=>e.eventDate===ds);
+}
+
+function filtered(){
+  return state.events.filter(e=>{
+    const ms=e.clientName.toLowerCase().includes(state.search.toLowerCase())||(e.weddingPlanner||'').toLowerCase().includes(state.search.toLowerCase())||e.location.toLowerCase().includes(state.search.toLowerCase());
+    const mf=state.filter==='all'||e.paymentStatus===state.filter;
+    return ms&&mf;
+  }).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
+}
+
+// Actions
+function setView(v){state.view=v;render();if(v==='dashboard')setTimeout(renderChart,100);}
+
+async function submitForm(){
+  const f=state.form;
+  if(!f.clientName||!f.eventDate||!f.totalAmount){alert('Completa los campos requeridos');return;}
+  const data={...f,totalAmount:parseFloat(f.totalAmount)||0,depositAmount:parseFloat(f.depositAmount)||0,createdAt:state.editing?state.editing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+  if(state.editing)data.id=state.editing.id;
+  await saveEvent(data);
+  state.form=emptyForm();state.editing=null;state.view='home';render();
+}
+
+function editEvent(ev){
+  state.form={...ev,totalAmount:(ev.totalAmount||0).toString(),depositAmount:(ev.depositAmount||0).toString(),expenses:ev.expenses||[]};
+  state.editing=ev;state.view='form';render();
+}
+
+async function removeEvent(id){
+  if(confirm('¿Eliminar este evento?')){
+    await deleteEvent(id);
+    state.selected=null;state.view='home';render();
+  }
+}
+
+function addExpense(){
+  state.form.expenses=state.form.expenses||[];
+  state.form.expenses.push({category:'ingredientes',description:'',amount:''});
+  render();
+}
+function rmExpense(i){state.form.expenses.splice(i,1);render();}
+function updExpense(i,k,v){state.form.expenses[i][k]=v;render();}
+
+async function markFactura(id){
+  const ev=state.events.find(e=>e.id===id);
+  if(ev){ev.facturaEmitida=true;await saveEvent(ev);if(state.selected&&state.selected.id===id)state.selected=ev;}
+}
+
+function genReport(){
+  const s=monthStats(state.reportMonth,state.reportYear);
+  const ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  let r=`📊 REPORTE - LA PETITE PARISIENNE\n${ms[state.reportMonth]} ${state.reportYear}\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  r+=`📈 RESUMEN\n• Eventos: ${s.count}\n• Ingresos: ${fmt(s.revenue)}\n• Gastos: ${fmt(s.expenses)}\n• Comisiones: ${fmt(s.commissions)}\n• Ganancia: ${fmt(s.profit)}\n\n`;
+  r+=`━━━━━━━━━━━━━━━━━━━━━━\nGenerado: ${new Date().toLocaleString('es-MX')}`;
+  if(navigator.share)navigator.share({text:r});else{navigator.clipboard.writeText(r);alert('Copiado al portapapeles');}
+}
+
+function shareEvents(){
+  const upcoming=state.events.filter(e=>new Date(e.eventDate)>=new Date()).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate)).slice(0,10);
+  let m=`🎂 LA PETITE PARISIENNE\nPróximos Eventos\n━━━━━━━━━━━━━━━━━━\n\n`;
+  if(!upcoming.length)m+='No hay eventos próximos';
+  else upcoming.forEach(e=>{
+    const st=e.paymentStatus==='pagado'?'✅':e.paymentStatus==='anticipo'?'🟡':'🔴';
+    m+=`${st} ${fmtDate(e.eventDate)}\n   ${e.clientName}\n   📍 ${e.location}\n   💰 ${fmt(e.totalAmount)}\n\n`;
+  });
+  m+=`━━━━━━━━━━━━━━━━━━\n${new Date().toLocaleString('es-MX')}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_blank');
+}
+
+// Icons
+const ic={
+  home:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  cal:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  chart:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+  cog:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  plus:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  back:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>`,
+  x:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  search:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  edit:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  phone:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+  wa:`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`,
+  share:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+  dl:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  check:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`,
+  pin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`
+};
+
+// Renders
+function rSync(){
+  const t={syncing:'Sincronizando...',synced:'Guardado ☁️',error:'Sin conexión'};
+  return `<div class="sync-indicator ${state.sync}"><div class="sync-dot"></div><span>${t[state.sync]}</span></div>`;
+}
+
+function rHome(){
+  const evs=filtered();
+  const tot=state.events.reduce((s,e)=>s+(e.totalAmount||0),0);
+  const pend=state.events.filter(e=>e.paymentStatus!=='pagado').reduce((s,e)=>s+((e.totalAmount||0)-(e.depositAmount||0)),0);
+  return `
+    <div class="header">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div><h1 style="font-size:24px;font-weight:700;color:#111827">La Petite Parisienne</h1><p style="font-size:14px;color:#6b7280">Cuernavaca 🥐</p></div>
+        <button onclick="state.showSearch=!state.showSearch;render();" style="padding:8px;background:#f3f4f6;border-radius:50%">${ic.search}</button>
+      </div>
+      ${rSync()}
+      ${state.showSearch?`<div style="margin-top:12px"><input placeholder="Buscar..." value="${state.search}" oninput="state.search=this.value;render();"></div>`:''}
+    </div>
+    <div style="padding:12px 20px;background:white;border-bottom:1px solid #e5e7eb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:linear-gradient(135deg,#10b981,#059669);border-radius:16px;padding:16px;color:white"><p style="font-size:14px;opacity:0.8">Ingresos</p><p style="font-size:20px;font-weight:700">${fmt(tot)}</p></div>
+        <div style="background:linear-gradient(135deg,#f43f5e,#ec4899);border-radius:16px;padding:16px;color:white"><p style="font-size:14px;opacity:0.8">Por Cobrar</p><p style="font-size:20px;font-weight:700">${fmt(pend)}</p></div>
+      </div>
+    </div>
+    <div style="padding:12px 20px;background:white;display:flex;gap:8px;overflow-x:auto;border-bottom:1px solid #e5e7eb">
+      <button onclick="state.filter='all';render();" class="filter-btn ${state.filter==='all'?'active':''}">Todos</button>
+      ${paymentStatuses.map(s=>`<button onclick="state.filter='${s.id}';render();" class="filter-btn ${state.filter===s.id?'active':''}">${s.label}</button>`).join('')}
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:12px 20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase">${evs.length} Eventos</p>
+        <button onclick="shareEvents();" style="font-size:12px;color:#f43f5e;font-weight:500;display:flex;align-items:center;gap:4px">${ic.share} Compartir</button>
+      </div>
+      ${evs.length===0?`<div style="text-align:center;padding:48px 0"><div style="font-size:48px;margin-bottom:12px">🎂</div><p style="color:#9ca3af;margin-bottom:16px">No hay eventos</p><button onclick="state.form=emptyForm();state.editing=null;setView('form');" style="padding:12px 24px;background:#f43f5e;color:white;border-radius:12px;font-weight:500">Crear evento</button></div>`:evs.map(e=>{
+        const past=new Date(e.eventDate)<new Date().setHours(0,0,0,0);
+        const pr=profit(e);
+        return `<div onclick="state.selected=state.events.find(x=>x.id==='${e.id}');setView('detail');" class="event-card" style="${past?'opacity:0.6':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div style="flex:1;min-width:0"><h3 style="font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.clientName}</h3><p style="font-size:14px;color:#6b7280">${fmtDate(e.eventDate)}</p></div>
+            <span class="status-badge status-${e.paymentStatus}">${paymentStatuses.find(s=>s.id===e.paymentStatus)?.label}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:4px;color:#9ca3af;font-size:14px"><span style="width:14px;height:14px">${ic.pin}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${e.location}</span></div>
+            <div style="text-align:right"><p style="font-weight:700;color:#111827">${fmt(e.totalAmount)}</p>${pr!==e.totalAmount?`<p style="font-size:12px;color:#16a34a">Ganancia: ${fmt(pr)}</p>`:''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:8px">
+            ${(e.services||[]).map(s=>`<span style="font-size:18px">${serviceTypes.find(t=>t.id===s)?.icon||''}</span>`).join('')}
+            ${!e.facturaEmitida&&e.paymentStatus==='pagado'?'<span style="margin-left:auto;font-size:12px;background:#fef3c7;color:#b45309;padding:4px 8px;border-radius:12px">Sin factura</span>':''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function rCal(){
+  const ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const ds=['D','L','M','M','J','V','S'];
+  const days=getDays(state.month);
+  const mEvs=state.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===state.month.getMonth()&&d.getFullYear()===state.month.getFullYear();}).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
+  return `
+    <div class="header"><div style="display:flex;justify-content:space-between;align-items:center">
+      <button onclick="state.month=new Date(state.month.getFullYear(),state.month.getMonth()-1);render();" style="padding:8px">${ic.back}</button>
+      <h2 style="font-size:18px;font-weight:600">${ms[state.month.getMonth()]} ${state.month.getFullYear()}</h2>
+      <button onclick="state.month=new Date(state.month.getFullYear(),state.month.getMonth()+1);render();" style="padding:8px;transform:rotate(180deg)">${ic.back}</button>
+    </div></div>
+    <div style="padding:0 12px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:8px">${ds.map(d=>`<div style="text-align:center;font-size:12px;font-weight:600;color:#9ca3af;padding:8px">${d}</div>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+        ${days.map(d=>{
+          if(!d)return '<div></div>';
+          const evs=eventsOn(d);
+          const today=d.toDateString()===new Date().toDateString();
+          return `<div onclick="${evs.length?`state.selected=state.events.find(x=>x.id==='${evs[0].id}');setView('detail');`:''}" class="calendar-day ${today?'today':''} ${evs.length&&!today?'has-events':''}">
+            ${d.getDate()}
+            ${evs.length?`<div style="display:flex;gap:2px">${evs.slice(0,3).map(e=>`<div class="calendar-dot" style="background:${e.paymentStatus==='pagado'?'#22c55e':e.paymentStatus==='anticipo'?'#f59e0b':'#ef4444'}"></div>`).join('')}</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px">
+      <p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Eventos del mes</p>
+      ${mEvs.map(e=>`<div onclick="state.selected=state.events.find(x=>x.id==='${e.id}');setView('detail');" style="display:flex;align-items:center;gap:12px;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:8px">
+        <div style="width:4px;height:48px;border-radius:4px;background:${e.paymentStatus==='pagado'?'#22c55e':e.paymentStatus==='anticipo'?'#f59e0b':'#ef4444'}"></div>
+        <div style="flex:1;min-width:0"><p style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.clientName}</p><p style="font-size:14px;color:#6b7280">${fmtDate(e.eventDate)}</p></div>
+        <p style="font-weight:600">${fmt(e.totalAmount)}</p>
+      </div>`).join('')}
+    </div>`;
+}
+
+function rDash(){
+  const y=new Date().getFullYear();
+  const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const fms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const yEvs=state.events.filter(e=>new Date(e.eventDate).getFullYear()===y);
+  const tot=yEvs.reduce((s,e)=>s+(e.totalAmount||0),0);
+  const exp=yEvs.reduce((s,e)=>s+expTotal(e.expenses),0);
+  const com=yEvs.reduce((s,e)=>s+commission(e.totalAmount,e.plannerCommission),0);
+  const pr=tot-exp-com;
+  const avg=yEvs.length?tot/yEvs.length:0;
+  let best={m:0,r:0};for(let i=0;i<12;i++){const s=monthStats(i,y);if(s.revenue>best.r)best={m:i,r:s.revenue};}
+  const svc={};yEvs.forEach(e=>(e.services||[]).forEach(s=>svc[s]=(svc[s]||0)+1));
+  const top=Object.entries(svc).sort((a,b)=>b[1]-a[1])[0];
+  return `
+    <div class="header"><h2 style="font-size:24px;font-weight:700">Dashboard</h2><p style="font-size:14px;color:#6b7280">${y}</p></div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div class="stat-card"><p style="font-size:12px;color:#6b7280;margin-bottom:4px">Ingresos</p><p style="font-size:20px;font-weight:700;color:#16a34a">${fmt(tot)}</p></div>
+        <div class="stat-card"><p style="font-size:12px;color:#6b7280;margin-bottom:4px">Gastos</p><p style="font-size:20px;font-weight:700;color:#dc2626">${fmt(exp)}</p></div>
+        <div class="stat-card"><p style="font-size:12px;color:#6b7280;margin-bottom:4px">Ganancia</p><p style="font-size:20px;font-weight:700;color:#2563eb">${fmt(pr)}</p></div>
+        <div class="stat-card"><p style="font-size:12px;color:#6b7280;margin-bottom:4px">Eventos</p><p style="font-size:20px;font-weight:700;color:#111827">${yEvs.length}</p></div>
+      </div>
+      <div class="card"><h3 style="font-weight:600;margin-bottom:12px">Ingresos Mensuales</h3><div class="chart-container"><canvas id="chart"></canvas></div></div>
+      <div class="card"><h3 style="font-weight:600;margin-bottom:12px">Destacados</h3>
+        <div style="padding:12px;background:#fffbeb;border-radius:12px;margin-bottom:8px;display:flex;justify-content:space-between"><div><p style="font-size:14px;color:#6b7280">Mejor Mes</p><p style="font-weight:600;color:#b45309">${fms[best.m]}</p></div><p style="font-weight:700;color:#d97706">${fmt(best.r)}</p></div>
+        <div style="padding:12px;background:#faf5ff;border-radius:12px;margin-bottom:8px"><p style="font-size:14px;color:#6b7280">Promedio/Evento</p><p style="font-weight:600;color:#7e22ce">${fmt(avg)}</p></div>
+        ${top?`<div style="padding:12px;background:#fff1f2;border-radius:12px;display:flex;justify-content:space-between;align-items:center"><div><p style="font-size:14px;color:#6b7280">Más Popular</p><p style="font-weight:600;color:#be123c">${serviceTypes.find(s=>s.id===top[0])?.label||top[0]}</p></div><span style="font-size:24px">${serviceTypes.find(s=>s.id===top[0])?.icon||''}</span></div>`:''}
+      </div>
+      <div class="card"><h3 style="font-weight:600;margin-bottom:12px">Reporte Mensual</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <select onchange="state.reportMonth=parseInt(this.value);render();">${fms.map((m,i)=>`<option value="${i}" ${state.reportMonth===i?'selected':''}>${m}</option>`).join('')}</select>
+          <select onchange="state.reportYear=parseInt(this.value);render();">${[y-1,y,y+1].map(yr=>`<option value="${yr}" ${state.reportYear===yr?'selected':''}>${yr}</option>`).join('')}</select>
+        </div>
+        <button onclick="genReport();" style="width:100%;padding:12px;background:#3b82f6;color:white;border-radius:12px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px">${ic.dl} Generar Reporte</button>
+      </div>
+    </div>`;
+}
+
+function renderChart(){
+  const ctx=document.getElementById('chart');if(!ctx)return;
+  if(chart)chart.destroy();
+  const y=new Date().getFullYear();
+  const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const rev=ms.map((_,i)=>monthStats(i,y).revenue);
+  const pr=ms.map((_,i)=>monthStats(i,y).profit);
+  chart=new Chart(ctx,{type:'bar',data:{labels:ms,datasets:[{label:'Ingresos',data:rev,backgroundColor:'rgba(34,197,94,0.8)',borderRadius:4},{label:'Ganancia',data:pr,backgroundColor:'rgba(59,130,246,0.8)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:10}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000)+'k'}}}}});
+}
+
+function rDetail(){
+  const e=state.selected;if(!e)return'';
+  const pr=profit(e);const exp=expTotal(e.expenses);
+  return `
+    <div class="header" style="display:flex;align-items:center;gap:12px;border-bottom:1px solid #e5e7eb">
+      <button onclick="state.selected=null;setView('home');" style="padding:4px">${ic.back}</button>
+      <h2 style="font-size:18px;font-weight:600;flex:1">Detalles</h2>
+      <button onclick="editEvent(state.selected);" style="padding:8px;color:#3b82f6">${ic.edit}</button>
+    </div>
+    <div style="flex:1;overflow-y:auto">
+      <div class="card" style="margin:16px 20px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div><h3 style="font-size:20px;font-weight:700">${e.clientName}</h3><span class="status-badge status-${e.paymentStatus}" style="margin-top:8px">${paymentStatuses.find(s=>s.id===e.paymentStatus)?.label}</span></div>
+          <div style="display:flex;gap:4px">${(e.services||[]).map(s=>`<span style="font-size:24px">${serviceTypes.find(t=>t.id===s)?.icon||''}</span>`).join('')}</div>
+        </div>
+        ${e.clientPhone?`<div style="display:flex;gap:8px;margin-top:16px">
+          <a href="tel:${e.clientPhone}" class="call-btn" style="flex:1;justify-content:center">${ic.phone} Llamar</a>
+          <a href="https://wa.me/${phoneWA(e.clientPhone)}" target="_blank" class="whatsapp-btn" style="flex:1;justify-content:center">${ic.wa} WhatsApp</a>
+        </div>`:''}
+      </div>
+      <div class="card" style="margin:0 20px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:20px">📅</span><div><p style="font-size:14px;color:#6b7280">Fecha</p><p style="font-weight:500">${fmtDateLong(e.eventDate)}</p></div></div>
+        ${e.eventTime?`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:20px">🕐</span><div><p style="font-size:14px;color:#6b7280">Hora</p><p style="font-weight:500">${e.eventTime}</p></div></div>`:''}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:20px">📍</span><div><p style="font-size:14px;color:#6b7280">Lugar</p><p style="font-weight:500">${e.location}</p></div></div>
+        ${e.weddingPlanner?`<div style="display:flex;align-items:center;gap:12px"><span style="font-size:20px">👤</span><div><p style="font-size:14px;color:#6b7280">Wedding Planner</p><p style="font-weight:500">${e.weddingPlanner} (${e.plannerCommission}%)</p></div></div>`:''}
+      </div>
+      <div class="card" style="margin:16px 20px">
+        <h4 style="font-weight:600;margin-bottom:12px">Finanzas</h4>
+        <div style="border-bottom:1px solid #f3f4f6;padding:8px 0;display:flex;justify-content:space-between"><span style="color:#6b7280">Total</span><span style="font-size:20px;font-weight:700">${fmt(e.totalAmount)}</span></div>
+        <div style="border-bottom:1px solid #f3f4f6;padding:8px 0;display:flex;justify-content:space-between"><span style="color:#6b7280">Anticipo</span><span style="color:#16a34a">+${fmt(e.depositAmount)}</span></div>
+        <div style="border-bottom:1px solid #f3f4f6;padding:8px 0;display:flex;justify-content:space-between"><span style="color:#6b7280">Por cobrar</span><span style="color:#dc2626">${fmt((e.totalAmount||0)-(e.depositAmount||0))}</span></div>
+        ${e.weddingPlanner?`<div style="border-bottom:1px solid #f3f4f6;padding:8px 0;display:flex;justify-content:space-between"><span style="color:#6b7280">Comisión</span><span style="color:#ea580c">-${fmt(commission(e.totalAmount,e.plannerCommission))}</span></div>`:''}
+        ${exp>0?`<div style="border-bottom:1px solid #f3f4f6;padding:8px 0;display:flex;justify-content:space-between"><span style="color:#6b7280">Gastos</span><span style="color:#dc2626">-${fmt(exp)}</span></div>`:''}
+        <div style="padding:12px;background:#eff6ff;border-radius:12px;margin-top:12px;display:flex;justify-content:space-between"><span style="font-weight:600;color:#1d4ed8">Ganancia Neta</span><span style="font-size:20px;font-weight:700;color:#1d4ed8">${fmt(pr)}</span></div>
+      </div>
+      ${(e.expenses||[]).length?`<div class="card" style="margin:0 20px"><h4 style="font-weight:600;margin-bottom:12px">Gastos</h4>${e.expenses.map(x=>`<div class="expense-row"><span style="font-size:20px">${expenseCategories.find(c=>c.id===x.category)?.icon||'📦'}</span><div style="flex:1"><p style="font-weight:500">${x.description||expenseCategories.find(c=>c.id===x.category)?.label}</p></div><span style="font-weight:600;color:#dc2626">-${fmt(x.amount)}</span></div>`).join('')}</div>`:''}
+      <div class="card" style="margin:16px 20px"><h4 style="font-weight:600;margin-bottom:12px">Facturación</h4>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:${e.facturaEmitida?'#f0fdf4':'#fffbeb'}">
+          <span style="font-size:24px">${e.facturaEmitida?'✅':'⏳'}</span>
+          <div style="flex:1"><p style="font-weight:500;color:${e.facturaEmitida?'#15803d':'#b45309'}">${e.facturaEmitida?'Factura emitida':'Pendiente'}</p>${e.rfcCliente?`<p style="font-size:14px;color:#6b7280">RFC: ${e.rfcCliente}</p>`:''}</div>
+          ${!e.facturaEmitida?`<button onclick="markFactura('${e.id}');" style="padding:8px 16px;background:#22c55e;color:white;border-radius:8px;font-weight:500">Marcar</button>`:''}
+        </div>
+      </div>
+      ${e.notes?`<div class="card" style="margin:0 20px"><h4 style="font-weight:600;margin-bottom:8px">📝 Notas</h4><p style="color:#4b5563">${e.notes}</p></div>`:''}
+      <button onclick="removeEvent('${e.id}');" style="margin:24px 20px;padding:16px;background:#fef2f2;color:#dc2626;border-radius:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 40px)">${ic.trash} Eliminar</button>
+    </div>`;
+}
+
+function rForm(){
+  const f=state.form;
+  const exp=expTotal(f.expenses);
+  const com=commission(f.totalAmount,f.plannerCommission);
+  const pr=(parseFloat(f.totalAmount)||0)-com-exp;
+  return `
+    <div class="header" style="display:flex;align-items:center;gap:12px;border-bottom:1px solid #e5e7eb">
+      <button onclick="state.form=emptyForm();state.editing=null;setView('home');" style="padding:4px">${ic.x}</button>
+      <h2 style="font-size:18px;font-weight:600;flex:1">${state.editing?'Editar':'Nuevo'} Evento</h2>
+      <button onclick="submitForm();" style="color:#f43f5e;font-weight:600">Guardar</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px">
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Cliente</p>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Nombre *</label><input value="${f.clientName}" oninput="state.form.clientName=this.value;" placeholder="María y Juan"></div>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Teléfono</label><input type="tel" value="${f.clientPhone||''}" oninput="state.form.clientPhone=this.value;" placeholder="+52 777 123 4567"></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Email</label><input type="email" value="${f.clientEmail||''}" oninput="state.form.clientEmail=this.value;" placeholder="cliente@email.com"></div>
+      </div>
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Evento</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Fecha *</label><input type="date" value="${f.eventDate}" oninput="state.form.eventDate=this.value;"></div>
+          <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Hora</label><input type="time" value="${f.eventTime}" oninput="state.form.eventTime=this.value;"></div>
+        </div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Lugar *</label><input value="${f.location}" oninput="state.form.location=this.value;" placeholder="Hacienda Cortés"></div>
+      </div>
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Wedding Planner</p>
+        <div style="margin-bottom:12px"><input value="${f.weddingPlanner}" oninput="state.form.weddingPlanner=this.value;" placeholder="Nombre del planner"></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Comisión %</label><input type="number" min="0" max="100" value="${f.plannerCommission}" oninput="state.form.plannerCommission=parseFloat(this.value)||0;render();"></div>
+      </div>
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Servicios</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${serviceTypes.map(s=>`<button onclick="const i=state.form.services.indexOf('${s.id}');if(i>-1)state.form.services.splice(i,1);else state.form.services.push('${s.id}');render();" class="service-btn ${f.services.includes(s.id)?'active':''}"><span style="font-size:20px">${s.icon}</span><span style="font-size:14px;font-weight:500">${s.label}</span>${f.services.includes(s.id)?`<span style="margin-left:auto;color:#f43f5e;width:16px;height:16px">${ic.check}</span>`:''}</button>`).join('')}</div>
+      </div>
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Pago</p>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Monto Total *</label><input type="number" min="0" value="${f.totalAmount}" oninput="state.form.totalAmount=this.value;render();" placeholder="$ MXN"></div>
+        <div style="margin-bottom:12px"><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">Anticipo</label><input type="number" min="0" value="${f.depositAmount}" oninput="state.form.depositAmount=this.value;" placeholder="$ MXN"></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:8px">Estado</label><div style="display:flex;gap:8px">${paymentStatuses.map(s=>`<button onclick="state.form.paymentStatus='${s.id}';render();" style="flex:1;padding:12px;border-radius:12px;font-size:14px;font-weight:500;background:${f.paymentStatus===s.id?'#111827':'#f3f4f6'};color:${f.paymentStatus===s.id?'white':'#4b5563'}">${s.label}</button>`).join('')}</div></div>
+      </div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase">Gastos</p><button onclick="addExpense();" style="font-size:14px;color:#f43f5e;font-weight:500">+ Agregar</button></div>
+        ${(f.expenses||[]).map((e,i)=>`<div class="expense-row">
+          <select onchange="updExpense(${i},'category',this.value);" style="width:60px;padding:8px;background:transparent">${expenseCategories.map(c=>`<option value="${c.id}" ${e.category===c.id?'selected':''}>${c.icon}</option>`).join('')}</select>
+          <input value="${e.description||''}" oninput="updExpense(${i},'description',this.value);" placeholder="Descripción" style="flex:1;padding:8px;background:transparent">
+          <input type="number" value="${e.amount||''}" oninput="updExpense(${i},'amount',this.value);render();" placeholder="$" style="width:80px;padding:8px;background:transparent;text-align:right">
+          <button onclick="rmExpense(${i});" style="color:#ef4444;padding:4px">${ic.x}</button>
+        </div>`).join('')}
+        ${f.expenses&&f.expenses.length?`<div style="display:flex;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb"><span style="font-weight:500">Total Gastos</span><span style="font-weight:700;color:#dc2626">${fmt(exp)}</span></div>`:''}
+      </div>
+      ${f.totalAmount?`<div class="card" style="background:linear-gradient(135deg,#fff1f2,#fffbeb)"><h4 style="font-weight:600;margin-bottom:8px">Resumen</h4>
+        <div style="font-size:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Ingreso</span><span>${fmt(f.totalAmount)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Comisión</span><span style="color:#ea580c">-${fmt(com)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Gastos</span><span style="color:#dc2626">-${fmt(exp)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.1)"><span>Ganancia</span><span style="color:#16a34a">${fmt(pr)}</span></div></div>
+      </div>`:''}
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Facturación</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#f9fafb;border-radius:12px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:12px"><span style="font-size:20px">📄</span><span style="font-weight:500">Factura emitida</span></div><button onclick="state.form.facturaEmitida=!state.form.facturaEmitida;render();" class="toggle ${f.facturaEmitida?'active':''}"><div class="toggle-knob"></div></button></div>
+        <div><label style="font-size:14px;color:#6b7280;display:block;margin-bottom:4px">RFC Cliente</label><input value="${f.rfcCliente||''}" oninput="state.form.rfcCliente=this.value.toUpperCase();" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
+      </div>
+      <div class="card"><p style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;margin-bottom:12px">Notas</p><textarea rows="3" oninput="state.form.notes=this.value;" placeholder="Detalles adicionales..." style="resize:none">${f.notes||''}</textarea></div>
+    </div>`;
+}
+
+function rSettings(){
+  return `
+    <div class="header"><h2 style="font-size:24px;font-weight:700">Ajustes</h2></div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px">
+      <div class="card" style="padding:0;overflow:hidden">
+        <button onclick="const d=JSON.stringify(state.events,null,2);const b=new Blob([d],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='la-petite-parisienne-backup.json';a.click();" style="width:100%;display:flex;align-items:center;gap:16px;padding:16px;border-bottom:1px solid #f3f4f6">
+          <div style="width:40px;height:40px;background:#eff6ff;border-radius:12px;display:flex;align-items:center;justify-content:center"><span style="color:#3b82f6">${ic.dl}</span></div>
+          <div style="text-align:left"><p style="font-weight:500">Exportar Datos</p><p style="font-size:14px;color:#6b7280">Backup JSON</p></div>
+        </button>
+        <label style="width:100%;display:flex;align-items:center;gap:16px;padding:16px;cursor:pointer">
+          <div style="width:40px;height:40px;background:#f0fdf4;border-radius:12px;display:flex;align-items:center;justify-content:center"><span style="color:#22c55e">${ic.dl}</span></div>
+          <div style="text-align:left"><p style="font-weight:500">Importar Datos</p><p style="font-size:14px;color:#6b7280">Restaurar backup</p></div>
+          <input type="file" accept=".json" onchange="const r=new FileReader();r.onload=async e=>{try{const d=JSON.parse(e.target.result);for(const ev of d)await saveEvent(ev);alert('Importado!');}catch(e){alert('Error');}};r.readAsText(this.files[0]);" style="display:none">
+        </label>
+      </div>
+      <div style="text-align:center;margin-top:24px">
+        <p style="color:#9ca3af;font-size:14px">${state.events.length} eventos</p>
+        <p style="color:#d1d5db;font-size:12px;margin-top:4px">La Petite Parisienne 🥐</p>
+        <p style="color:#d1d5db;font-size:12px">v2.0 - Cloud Sync</p>
+      </div>
+    </div>`;
+}
+
+function rTabBar(){
+  const tabs=[
+    {id:'home',icon:ic.home,label:'Inicio'},
+    {id:'calendar',icon:ic.cal,label:'Calendario'},
+    {id:'add',icon:ic.plus,label:''},
+    {id:'dashboard',icon:ic.chart,label:'Dashboard'},
+    {id:'settings',icon:ic.cog,label:'Ajustes'}
+  ];
+  return `<div class="tab-bar">${tabs.map(t=>{
+    if(t.id==='add')return `<button onclick="state.form=emptyForm();state.editing=null;setView('form');" class="add-btn">${t.icon}</button>`;
+    return `<button onclick="setView('${t.id}');" class="tab-btn ${state.view===t.id?'active':''}">${t.icon}<span>${t.label}</span></button>`;
+  }).join('')}</div>`;
+}
+
+function render(){
+  let html='';
+  if(state.loading){html='<div class="loading"><div class="spinner"></div></div>';}
+  else{
+    switch(state.view){
+      case'home':html=rHome();break;
+      case'calendar':html=rCal();break;
+      case'dashboard':html=rDash();break;
+      case'detail':html=rDetail();break;
+      case'form':html=rForm();break;
+      case'settings':html=rSettings();break;
+    }
+    if(['home','calendar','dashboard','settings'].includes(state.view))html+=rTabBar();
+  }
+  document.getElementById('app').innerHTML=html;
+}
+
+// Init
+loadEvents();
+</script>
+</body>
+</html>

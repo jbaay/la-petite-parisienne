@@ -9,6 +9,7 @@
   <meta name="theme-color" content="#f43f5e">
   <title>La Petite Parisienne</title>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -48,8 +49,6 @@
     .chart-container{position:relative;height:200px}
     .whatsapp-btn{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:white;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px}
     .call-btn{display:inline-flex;align-items:center;gap:8px;background:#3b82f6;color:white;padding:12px 16px;border-radius:12px;font-weight:600;font-size:14px}
-    .progress-bar{height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden}
-    .progress-fill{height:100%;border-radius:4px}
     .toggle{width:48px;height:28px;border-radius:14px;background:#d1d5db;position:relative}
     .toggle.active{background:#22c55e}
     .toggle-knob{position:absolute;top:4px;left:4px;width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:transform 0.2s}
@@ -61,6 +60,17 @@
     .loading{position:fixed;inset:0;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;z-index:1000}
     .spinner{width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#f43f5e;border-radius:50%;animation:spin 0.8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
+    .login-container{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#fff1f2,#fef3c7)}
+    .login-box{background:white;border-radius:24px;padding:32px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,0.1)}
+    .login-logo{font-size:48px;text-align:center;margin-bottom:8px}
+    .login-title{font-size:24px;font-weight:700;text-align:center;color:#111827;margin-bottom:4px}
+    .login-subtitle{font-size:14px;color:#6b7280;text-align:center;margin-bottom:24px}
+    .login-input{margin-bottom:16px}
+    .login-btn{width:100%;padding:14px;background:linear-gradient(135deg,#f43f5e,#ec4899);color:white;border-radius:12px;font-weight:600;font-size:16px;margin-top:8px}
+    .login-btn:disabled{opacity:0.6}
+    .login-error{background:#fef2f2;color:#dc2626;padding:12px;border-radius:12px;font-size:14px;margin-bottom:16px;text-align:center}
+    .user-badge{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f3f4f6;border-radius:20px;font-size:12px;color:#6b7280}
+    .logout-btn{color:#ef4444;font-size:12px;font-weight:500}
   </style>
 </head>
 <body>
@@ -75,6 +85,7 @@ firebase.initializeApp({
   messagingSenderId:"377979404609",
   appId:"1:377979404609:web:7b32a282f8201fdface1c0"
 });
+const auth=firebase.auth();
 const db=firebase.firestore();
 
 // Data
@@ -97,16 +108,14 @@ const expenseCategories=[
   {id:'alquiler',label:'Alquiler',icon:'🍽️'},
   {id:'otro',label:'Otro',icon:'📦'}
 ];
-const resicoRates=[
-  {min:0,max:25000,rate:1},
-  {min:25000.01,max:50000,rate:1.1},
-  {min:50000.01,max:83333.33,rate:1.5},
-  {min:83333.33,max:208333.33,rate:2},
-  {min:208333.33,max:291666.67,rate:2.5}
-];
 
 // State
 let state={
+  user:null,
+  authLoading:true,
+  loginEmail:'',
+  loginPassword:'',
+  loginError:'',
   events:[],
   view:'home',
   month:new Date(),
@@ -116,7 +125,7 @@ let state={
   filter:'all',
   showSearch:false,
   sync:'synced',
-  loading:true,
+  loading:false,
   form:emptyForm(),
   reportMonth:new Date().getMonth(),
   reportYear:new Date().getFullYear()
@@ -125,6 +134,38 @@ let chart=null;
 
 function emptyForm(){
   return{clientName:'',clientPhone:'',clientEmail:'',eventDate:'',eventTime:'',location:'',weddingPlanner:'',plannerCommission:10,services:[],totalAmount:'',depositAmount:'',paymentStatus:'pendiente',facturaEmitida:false,rfcCliente:'',expenses:[],notes:''};
+}
+
+// Auth
+auth.onAuthStateChanged(user=>{
+  state.user=user;
+  state.authLoading=false;
+  if(user){
+    loadEvents();
+  }else{
+    state.events=[];
+    render();
+  }
+});
+
+async function login(){
+  state.loginError='';
+  render();
+  try{
+    await auth.signInWithEmailAndPassword(state.loginEmail,state.loginPassword);
+  }catch(e){
+    console.error(e);
+    if(e.code==='auth/user-not-found')state.loginError='Usuario no encontrado';
+    else if(e.code==='auth/wrong-password')state.loginError='Contraseña incorrecta';
+    else if(e.code==='auth/invalid-email')state.loginError='Email inválido';
+    else if(e.code==='auth/invalid-credential')state.loginError='Email o contraseña incorrectos';
+    else state.loginError='Error de conexión';
+    render();
+  }
+}
+
+function logout(){
+  if(confirm('¿Cerrar sesión?'))auth.signOut();
 }
 
 // Firebase ops
@@ -289,10 +330,40 @@ const ic={
   pin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`
 };
 
+// Login Render
+function rLogin(){
+  return `
+    <div class="login-container">
+      <div class="login-box">
+        <div class="login-logo">🥐</div>
+        <h1 class="login-title">La Petite Parisienne</h1>
+        <p class="login-subtitle">Inicia sesión para continuar</p>
+        ${state.loginError?`<div class="login-error">${state.loginError}</div>`:''}
+        <div class="login-input">
+          <input type="email" placeholder="Email" value="${state.loginEmail}" oninput="state.loginEmail=this.value;state.loginError='';render();">
+        </div>
+        <div class="login-input">
+          <input type="password" placeholder="Contraseña" value="${state.loginPassword}" oninput="state.loginPassword=this.value;state.loginError='';render();" onkeypress="if(event.key==='Enter')login();">
+        </div>
+        <button onclick="login();" class="login-btn" ${!state.loginEmail||!state.loginPassword?'disabled':''}>
+          Entrar
+        </button>
+      </div>
+    </div>`;
+}
+
 // Renders
 function rSync(){
   const t={syncing:'Sincronizando...',synced:'Guardado ☁️',error:'Sin conexión'};
   return `<div class="sync-indicator ${state.sync}"><div class="sync-dot"></div><span>${t[state.sync]}</span></div>`;
+}
+
+function rUserBadge(){
+  if(!state.user)return '';
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div class="user-badge">👤 ${state.user.email.split('@')[0]}</div>
+    <button onclick="logout();" class="logout-btn">Cerrar sesión</button>
+  </div>`;
 }
 
 function rHome(){
@@ -301,6 +372,7 @@ function rHome(){
   const pend=state.events.filter(e=>e.paymentStatus!=='pagado').reduce((s,e)=>s+((e.totalAmount||0)-(e.depositAmount||0)),0);
   return `
     <div class="header">
+      ${rUserBadge()}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div><h1 style="font-size:24px;font-weight:700;color:#111827">La Petite Parisienne</h1><p style="font-size:14px;color:#6b7280">Cuernavaca 🥐</p></div>
         <button onclick="state.showSearch=!state.showSearch;render();" style="padding:8px;background:#f3f4f6;border-radius:50%">${ic.search}</button>
@@ -381,7 +453,6 @@ function rCal(){
 
 function rDash(){
   const y=new Date().getFullYear();
-  const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const fms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const yEvs=state.events.filter(e=>new Date(e.eventDate).getFullYear()===y);
   const tot=yEvs.reduce((s,e)=>s+(e.totalAmount||0),0);
@@ -443,8 +514,8 @@ function rDetail(){
           <div style="display:flex;gap:4px">${(e.services||[]).map(s=>`<span style="font-size:24px">${serviceTypes.find(t=>t.id===s)?.icon||''}</span>`).join('')}</div>
         </div>
         ${e.clientPhone?`<div style="display:flex;gap:8px;margin-top:16px">
-          <a href="tel:${e.clientPhone}" class="call-btn" style="flex:1;justify-content:center">${ic.phone} Llamar</a>
-          <a href="https://wa.me/${phoneWA(e.clientPhone)}" target="_blank" class="whatsapp-btn" style="flex:1;justify-content:center">${ic.wa} WhatsApp</a>
+          <a href="tel:${e.clientPhone}" class="call-btn" style="flex:1;justify-content:center;text-decoration:none">${ic.phone} Llamar</a>
+          <a href="https://wa.me/${phoneWA(e.clientPhone)}" target="_blank" class="whatsapp-btn" style="flex:1;justify-content:center;text-decoration:none">${ic.wa} WhatsApp</a>
         </div>`:''}
       </div>
       <div class="card" style="margin:0 20px">
@@ -550,9 +621,11 @@ function rSettings(){
         </label>
       </div>
       <div style="text-align:center;margin-top:24px">
+        ${state.user?`<p style="color:#6b7280;font-size:14px;margin-bottom:8px">👤 ${state.user.email}</p>`:''}
         <p style="color:#9ca3af;font-size:14px">${state.events.length} eventos</p>
         <p style="color:#d1d5db;font-size:12px;margin-top:4px">La Petite Parisienne 🥐</p>
         <p style="color:#d1d5db;font-size:12px">v2.0 - Cloud Sync</p>
+        <button onclick="logout();" style="margin-top:16px;padding:12px 24px;background:#fef2f2;color:#dc2626;border-radius:12px;font-weight:500">Cerrar sesión</button>
       </div>
     </div>`;
 }
@@ -573,23 +646,36 @@ function rTabBar(){
 
 function render(){
   let html='';
-  if(state.loading){html='<div class="loading"><div class="spinner"></div></div>';}
+  
+  // Auth loading
+  if(state.authLoading){
+    html='<div class="loading"><div class="spinner"></div></div>';
+  }
+  // Not logged in
+  else if(!state.user){
+    html=rLogin();
+  }
+  // Logged in - show app
   else{
-    switch(state.view){
-      case'home':html=rHome();break;
-      case'calendar':html=rCal();break;
-      case'dashboard':html=rDash();break;
-      case'detail':html=rDetail();break;
-      case'form':html=rForm();break;
-      case'settings':html=rSettings();break;
+    if(state.loading){
+      html='<div class="loading"><div class="spinner"></div></div>';
+    }else{
+      switch(state.view){
+        case'home':html=rHome();break;
+        case'calendar':html=rCal();break;
+        case'dashboard':html=rDash();break;
+        case'detail':html=rDetail();break;
+        case'form':html=rForm();break;
+        case'settings':html=rSettings();break;
+      }
+      if(['home','calendar','dashboard','settings'].includes(state.view))html+=rTabBar();
     }
-    if(['home','calendar','dashboard','settings'].includes(state.view))html+=rTabBar();
   }
   document.getElementById('app').innerHTML=html;
 }
 
-// Init
-loadEvents();
+// Initial render
+render();
 </script>
 </body>
 </html>

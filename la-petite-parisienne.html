@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="La Petite Parisienne">
+    <meta name="theme-color" content="#d4a574">
+    <title>La Petite Parisienne - Gestión de Eventos</title>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d4a574;
+            --primary-dark: #b8956a;
+            --primary-light: #e8c9a8;
+            --secondary: #8b7355;
+            --accent: #c9a86c;
+            --bg-cream: #faf6f1;
+            --bg-white: #ffffff;
+            --text-dark: #3d3d3d;
+            --text-medium: #6b6b6b;
+            --text-light: #9a9a9a;
+            --success: #7cb87c;
+            --warning: #e8b86d;
+            --danger: #d47474;
+            --border: #e8e2db;
+            --shadow: rgba(139, 115, 85, 0.1);
+            --shadow-strong: rgba(139, 115, 85, 0.2);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg-cream);
+            color: var(--text-dark);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px var(--shadow-strong);
+        }
+        .header h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; letter-spacing: 1px; }
+        .header-subtitle { font-size: 0.85rem; opacity: 0.9; margin-top: 4px; font-weight: 300; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; }
+        .sync-indicator { display: flex; align-items: center; gap: 6px; opacity: 0.9; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        .sync-dot.syncing { background: #f59e0b; animation: pulse 1s infinite; }
+        .sync-dot.error { background: #ef4444; }
+
+        /* Navigation Buttons */
+        .nav-buttons { display: flex; gap: 10px; padding: 15px 20px; background: var(--bg-white); border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .nav-btn { flex-shrink: 0; padding: 10px 18px; border: none; border-radius: 25px; font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 6px; }
+        .nav-btn.primary { background: var(--primary); color: white; }
+        .nav-btn.primary:hover, .nav-btn.primary:active { background: var(--primary-dark); transform: scale(0.98); }
+        .nav-btn.secondary { background: var(--bg-cream); color: var(--text-dark); border: 1px solid var(--border); }
+        .nav-btn.secondary:hover, .nav-btn.secondary:active { background: var(--primary-light); border-color: var(--primary); }
+        .nav-btn.back { background: linear-gradient(135deg, var(--secondary) 0%, #6b5a46 100%); color: white; }
+        .nav-btn.back:hover, .nav-btn.back:active { transform: scale(0.98); opacity: 0.9; }
+
+        /* Main Content */
+        .main-content { padding: 20px; max-width: 800px; margin: 0 auto; padding-bottom: 100px; }
+
+        /* Cards */
+        .card { background: var(--bg-white); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 15px var(--shadow); border: 1px solid var(--border); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card:active { transform: scale(0.99); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .card-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--text-dark); }
+        .card-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge-pending { background: var(--warning); color: white; }
+        .badge-paid { background: var(--success); color: white; }
+        .badge-partial { background: var(--primary); color: white; }
+
+        /* Form Elements */
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-medium); margin-bottom: 8px; }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 1rem; color: var(--text-dark); background: var(--bg-white); transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.15); }
+        .form-textarea { resize: vertical; min-height: 100px; }
+
+        /* Services Grid */
+        .services-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .service-card { background: var(--bg-white); border: 2px solid var(--border); border-radius: 16px; padding: 18px 14px; text-align: center; cursor: pointer; transition: all 0.3s ease; }
+        .service-card:hover, .service-card:active { border-color: var(--primary); background: var(--primary-light); }
+        .service-card.selected { border-color: var(--primary); background: linear-gradient(135deg, var(--primary-light) 0%, rgba(212, 165, 116, 0.2) 100%); box-shadow: 0 4px 15px var(--shadow); }
+        .service-icon { font-size: 2rem; margin-bottom: 8px; }
+        .service-name { font-weight: 600; font-size: 0.9rem; color: var(--text-dark); }
+
+        /* Amount Display */
+        .amount-display { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; padding: 20px; border-radius: 16px; text-align: center; margin: 20px 0; }
+        .amount-label { font-size: 0.85rem; opacity: 0.9; margin-bottom: 5px; }
+        .amount-value { font-family: 'Playfair Display', serif; font-size: 2.2rem; font-weight: 700; }
+
+        /* Payment Section */
+        .payment-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .payment-row:last-child { border-bottom: none; }
+        .payment-label { color: var(--text-medium); font-size: 0.95rem; }
+        .payment-value { font-weight: 600; color: var(--text-dark); }
+        .payment-value.positive { color: var(--success); }
+        .payment-value.negative { color: var(--danger); }
+
+        /* RESICO Section */
+        .resico-card { background: linear-gradient(135deg, #f0f4e8 0%, #e8f0e0 100%); border: 2px solid #c5d4b5; }
+        .resico-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .resico-badge { background: #7cb87c; color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; }
+        .resico-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text-dark); }
+        .resico-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .resico-item { text-align: center; padding: 12px; background: rgba(255, 255, 255, 0.7); border-radius: 12px; }
+        .resico-item-label { font-size: 0.75rem; color: var(--text-medium); margin-bottom: 4px; }
+        .resico-item-value { font-size: 1.1rem; font-weight: 700; color: var(--text-dark); }
+        .resico-item-value.tax { color: var(--danger); }
+        .resico-item-value.net { color: var(--success); }
+
+        /* Buttons */
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; box-shadow: 0 4px 15px var(--shadow); }
+        .btn-primary:hover, .btn-primary:active { transform: translateY(-2px); box-shadow: 0 6px 20px var(--shadow-strong); }
+        .btn-secondary { background: var(--bg-cream); color: var(--text-dark); border: 2px solid var(--border); }
+        .btn-secondary:hover, .btn-secondary:active { background: var(--primary-light); border-color: var(--primary); }
+        .btn-success { background: linear-gradient(135deg, var(--success) 0%, #5a9a5a 100%); color: white; }
+        .btn-danger { background: linear-gradient(135deg, var(--danger) 0%, #b85a5a 100%); color: white; }
+        .btn-whatsapp { background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; }
+
+        /* Event List */
+        .event-item { display: flex; align-items: center; padding: 16px; background: var(--bg-white); border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--border); cursor: pointer; transition: all 0.3s ease; }
+        .event-item:hover, .event-item:active { border-color: var(--primary); box-shadow: 0 4px 15px var(--shadow); }
+        .event-icon { width: 50px; height: 50px; background: var(--primary-light); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-right: 15px; }
+        .event-details { flex: 1; }
+        .event-name { font-weight: 600; color: var(--text-dark); margin-bottom: 4px; }
+        .event-date { font-size: 0.85rem; color: var(--text-medium); }
+        .event-amount { text-align: right; }
+        .event-total { font-weight: 700; color: var(--text-dark); }
+        .event-status { font-size: 0.8rem; margin-top: 4px; }
+
+        /* Stats Dashboard */
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: var(--bg-white); border-radius: 16px; padding: 18px; text-align: center; border: 1px solid var(--border); }
+        .stat-icon { font-size: 1.8rem; margin-bottom: 8px; }
+        .stat-value { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: var(--text-dark); }
+        .stat-label { font-size: 0.8rem; color: var(--text-medium); margin-top: 4px; }
+
+        /* Menu Principal */
+        .menu-section { margin-bottom: 25px; }
+        .menu-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--text-dark); margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .menu-item { background: var(--bg-white); border: 2px solid var(--border); border-radius: 20px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s ease; }
+        .menu-item:hover, .menu-item:active { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 8px 25px var(--shadow); }
+        .menu-item-icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .menu-item-title { font-weight: 700; font-size: 1rem; color: var(--text-dark); margin-bottom: 5px; }
+        .menu-item-subtitle { font-size: 0.8rem; color: var(--text-medium); }
+
+        /* Commission Input */
+        .commission-group { display: flex; gap: 10px; align-items: flex-end; }
+        .commission-group .form-group { flex: 1; margin-bottom: 0; }
+        .commission-rate { width: 80px; text-align: center; }
+
+        /* Hidden Sections */
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn 0.3s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.8; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Responsive */
+        @media (min-width: 600px) {
+            .services-grid, .menu-grid { grid-template-columns: repeat(3, 1fr); }
+            .stats-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        /* Delete button */
+        .delete-btn { background: var(--danger); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; }
+        .delete-btn:hover { background: #b85a5a; transform: scale(1.1); }
+
+        /* Expense list item */
+        .expense-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; background: var(--bg-cream); border-radius: 10px; margin-bottom: 10px; }
+        .expense-info { flex: 1; }
+        .expense-desc { font-weight: 600; color: var(--text-dark); }
+        .expense-amount { color: var(--danger); font-weight: 700; }
+
+        /* Tabs */
+        .tabs { display: flex; background: var(--bg-cream); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 12px; text-align: center; border: none; background: transparent; font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--text-medium); cursor: pointer; border-radius: 10px; transition: all 0.3s ease; }
+        .tab.active { background: var(--bg-white); color: var(--primary-dark); box-shadow: 0 2px 8px var(--shadow); }
+
+        /* Month selector */
+        .month-selector { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .month-nav { width: 40px; height: 40px; border: none; background: var(--bg-white); border-radius: 50%; cursor: pointer; font-size: 1.2rem; color: var(--text-dark); box-shadow: 0 2px 8px var(--shadow); transition: all 0.3s ease; }
+        .month-nav:hover { background: var(--primary-light); }
+        .month-display { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--text-dark); min-width: 180px; text-align: center; }
+
+        /* Toggle switch */
+        .toggle-group { display: flex; align-items: center; justify-content: space-between; padding: 15px; background: var(--bg-cream); border-radius: 12px; margin-bottom: 15px; }
+        .toggle-label { font-weight: 600; color: var(--text-dark); }
+        .toggle { position: relative; width: 50px; height: 28px; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border); transition: 0.3s; border-radius: 28px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }
+        .toggle input:checked + .toggle-slider { background-color: var(--primary); }
+        .toggle input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+        /* Info box */
+        .info-box { background: #e8f4fd; border: 1px solid #b8d4e8; border-radius: 12px; padding: 15px; margin-bottom: 15px; font-size: 0.9rem; color: #2c5282; }
+        .info-box-icon { margin-right: 8px; }
+
+        /* Loading Screen */
+        .loading-screen { position: fixed; inset: 0; background: var(--bg-cream); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; }
+        .loading-logo { font-size: 4rem; margin-bottom: 20px; animation: pulse 1.5s ease-in-out infinite; }
+        .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+        /* Login Screen */
+        .login-container { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, var(--bg-cream) 0%, var(--primary-light) 100%); }
+        .login-box { background: var(--bg-white); border-radius: 24px; padding: 40px 32px; width: 100%; max-width: 380px; box-shadow: 0 10px 40px var(--shadow-strong); }
+        .login-logo-container { text-align: center; margin-bottom: 24px; }
+        .login-logo-icon { font-size: 4rem; margin-bottom: 12px; }
+        .login-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; color: var(--text-dark); margin-bottom: 4px; }
+        .login-subtitle { font-size: 0.9rem; color: var(--text-medium); }
+        .login-form { margin-top: 24px; }
+        .login-input-group { margin-bottom: 16px; }
+        .login-input { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 1rem; color: var(--text-dark); background: var(--bg-white); transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+        .login-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.15); }
+        .login-btn { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s ease; margin-top: 8px; }
+        .login-btn:hover, .login-btn:active { transform: translateY(-2px); box-shadow: 0 6px 20px var(--shadow-strong); }
+        .login-error { background: #fef2f2; color: #dc2626; padding: 12px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; text-align: center; display: none; }
+        .login-error.show { display: block; }
+
+        /* Hide app initially */
+        .app-container { display: none; }
+        .app-container.visible { display: block; }
+
+        /* ============ NEW FEATURE STYLES ============ */
+
+        /* Notification Bell */
+        .notif-bell { position: relative; cursor: pointer; font-size: 1.2rem; padding: 4px 8px; }
+        .notif-badge { position: absolute; top: -4px; right: -4px; background: var(--danger); color: white; font-size: 0.65rem; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+
+        /* Offline Banner */
+        .offline-banner { background: #fef2f2; color: #dc2626; text-align: center; padding: 8px; font-size: 0.85rem; font-weight: 600; border-bottom: 1px solid #fecaca; display: none; }
+        .offline-banner.visible { display: block; animation: fadeIn 0.3s ease; }
+
+        /* Multi-Payment */
+        .pay-method-btn { padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; background: var(--bg-cream); border: 2px solid var(--border); cursor: pointer; transition: all 0.3s ease; }
+        .pay-method-btn.active { background: var(--primary-light); border-color: var(--primary); }
+        .payment-history-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--bg-cream); border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border); }
+
+        /* Photo Gallery */
+        .photo-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+        .photo-thumb { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; cursor: pointer; border: 2px solid var(--border); transition: all 0.3s ease; }
+        .photo-thumb:hover { border-color: var(--primary); transform: scale(1.05); }
+        .photo-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
+        .photo-full-modal { position: fixed; inset: 0; z-index: 250; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease-out; }
+        .photo-add-btn { width: 80px; height: 80px; border-radius: 10px; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; color: var(--text-light); transition: all 0.3s ease; }
+        .photo-add-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+        /* Catalog tier buttons */
+        #catalogGuestBtns .pay-method-btn { transition: all 0.3s ease; border: 2px solid var(--border); }
+        #catalogGuestBtns .pay-method-btn.active { background: linear-gradient(135deg, var(--primary-light) 0%, rgba(212,165,116,0.3) 100%); border-color: var(--primary); transform: scale(1.03); }
+
+        /* Line Items */
+        .line-item { background: var(--bg-cream); border-radius: 10px; padding: 12px; margin-bottom: 8px; border: 1px solid var(--border); }
+        .line-item-row { display: flex; gap: 8px; align-items: flex-end; }
+        .line-item-row .form-input { padding: 10px; font-size: 0.9rem; }
+        .line-item-desc { flex: 3; }
+        .line-item-price { flex: 1.5; }
+        .line-item-qty { flex: 1; }
+        .line-item-subtotal { flex: 1.5; text-align: right; font-weight: 700; color: var(--text-dark); padding: 10px 0; font-size: 0.95rem; }
+        .line-item-note { width: 100%; margin-top: 6px; }
+
+        /* Notification Items */
+        .notif-item { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.3s ease; }
+        .notif-item:active { transform: scale(0.98); }
+        .notif-urgent { background: #fef2f2; border: 1px solid #fecaca; }
+        .notif-warning { background: #fff8e6; border: 1px solid #f0d78c; }
+        .notif-reminder { background: #e8f4fd; border: 1px solid #b8d4e8; }
+
+        /* Template Items */
+        .template-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg-white); border-radius: 12px; margin-bottom: 8px; box-shadow: 0 2px 8px var(--shadow); border: 1px solid var(--border); cursor: pointer; transition: all 0.3s ease; }
+        .template-item:active { transform: scale(0.98); }
+
+        /* Modal */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 200; animation: fadeIn 0.2s ease-out; }
+        .modal-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 201; background: var(--bg-white); border-radius: 20px 20px 0 0; padding: 24px; max-height: 70vh; overflow-y: auto; animation: slideUp 0.35s ease-out; }
+        .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 16px; }
+
+        /* Chart */
+        .chart-container { position: relative; height: 280px; margin: 16px 0; }
+
+        /* Search */
+        .search-input { width: 100%; padding: 12px 16px 12px 40px; border: 2px solid var(--border); border-radius: 25px; font-family: 'Nunito', sans-serif; font-size: 0.95rem; background: var(--bg-white); transition: all 0.3s ease; }
+        .search-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(212, 165, 116, 0.15); }
+        .search-wrapper { position: relative; margin-bottom: 16px; }
+        .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1rem; color: var(--text-light); pointer-events: none; }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-logo">🥐</div>
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container" style="display: none;">
+        <div class="login-box">
+            <div class="login-logo-container">
+                <div class="login-logo-icon">🥐</div>
+                <h1 class="login-title">La Petite Parisienne</h1>
+                <p class="login-subtitle">Inicia sesión para continuar</p>
+            </div>
+            <div class="login-form">
+                <div id="loginError" class="login-error"></div>
+                <div class="login-input-group">
+                    <input type="email" id="loginEmail" class="login-input" placeholder="Email">
+                </div>
+                <div class="login-input-group">
+                    <input type="password" id="loginPassword" class="login-input" placeholder="Contraseña" onkeypress="if(event.key==='Enter')login()">
+                </div>
+                <button onclick="login()" class="login-btn">Entrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offlineBanner" class="offline-banner">Sin conexión - Los cambios se guardarán localmente</div>
+
+    <!-- Main App Container -->
+    <div id="appContainer" class="app-container">
+    <header class="header">
+        <div class="header-top">
+            <span id="headerUser">👤</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div class="sync-indicator">
+                    <div id="syncDot" class="sync-dot"></div>
+                    <span id="syncText">Guardado ☁️</span>
+                </div>
+                <div class="notif-bell" id="notifBell" onclick="toggleNotifications()">
+                    🔔
+                    <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+                </div>
+            </div>
+        </div>
+        <h1>🥐 La Petite Parisienne</h1>
+        <p class="header-subtitle">Gestión de Eventos y Catering</p>
+        <button onclick="logout()" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 12px;border-radius:20px;font-size:0.75rem;cursor:pointer;">Salir</button>
+    </header>
+
+    <nav class="nav-buttons" id="navButtons">
+        <button class="nav-btn back" id="backToMenuBtn" style="display:none;" onclick="goToMainMenu()">← Menú</button>
+        <button class="nav-btn primary" onclick="showSection('newEvent')">➕ Nuevo</button>
+        <button class="nav-btn secondary" onclick="showSection('events')">📋 Eventos</button>
+        <button class="nav-btn secondary" onclick="showSection('dashboard')">📊 Dashboard</button>
+        <button class="nav-btn secondary" onclick="showSection('expenses')">💸 Gastos</button>
+        <button class="nav-btn secondary" onclick="showSection('templates')">📑 Templates</button>
+    </nav>
+
+    <main class="main-content">
+        <!-- SECTION: Menu Principal -->
+        <section id="mainMenu" class="section active">
+            <div class="menu-section">
+                <h2 class="menu-title">📅 Acciones Rápidas</h2>
+                <div class="menu-grid">
+                    <div class="menu-item" onclick="showSection('newEvent')"><div class="menu-item-icon">✨</div><div class="menu-item-title">Nuevo Evento</div><div class="menu-item-subtitle">Crear cotización</div></div>
+                    <div class="menu-item" onclick="showSection('events')"><div class="menu-item-icon">📋</div><div class="menu-item-title">Mis Eventos</div><div class="menu-item-subtitle">Ver y gestionar</div></div>
+                    <div class="menu-item" onclick="showSection('dashboard')"><div class="menu-item-icon">📊</div><div class="menu-item-title">Dashboard</div><div class="menu-item-subtitle">Estadísticas</div></div>
+                    <div class="menu-item" onclick="showSection('expenses')"><div class="menu-item-icon">💸</div><div class="menu-item-title">Gastos</div><div class="menu-item-subtitle">Control mensual</div></div>
+                </div>
+            </div>
+            <div class="menu-section" style="margin-bottom:15px;">
+                <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="padding:12px;font-size:0.9rem;" id="mainTemplateBtn">🖼️ Cargar Template PDF Cotización</button>
+                <div id="templateStatus" style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:6px;"></div>
+            </div>
+            <div class="menu-section">
+                <h2 class="menu-title">🎂 Nuestros Servicios</h2>
+                <div class="menu-grid">
+                    <div class="menu-item" onclick="showServiceForm('pastel')"><div class="menu-item-icon">🎂</div><div class="menu-item-title">Pastel</div><div class="menu-item-subtitle">Bodas y eventos</div></div>
+                    <div class="menu-item" onclick="showServiceForm('mesa_dulces')"><div class="menu-item-icon">🍬</div><div class="menu-item-title">Mesa de Dulces</div><div class="menu-item-subtitle">Candy bar</div></div>
+                    <div class="menu-item" onclick="showServiceForm('postres')"><div class="menu-item-icon">🧁</div><div class="menu-item-title">Postres</div><div class="menu-item-subtitle">Cupcakes y más</div></div>
+                    <div class="menu-item" onclick="showServiceForm('quesos')"><div class="menu-item-icon">🧀</div><div class="menu-item-title">Mesa de Quesos</div><div class="menu-item-subtitle">Gourmet</div></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">📈 Resumen del Mes</h3></div>
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value" id="quickEventCount">0</div><div class="stat-label">Eventos</div></div>
+                    <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" id="quickRevenue">$0</div><div class="stat-label">Ingresos</div></div>
+                    <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-value" id="quickExpenses">$0</div><div class="stat-label">Gastos</div></div>
+                    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="quickNet">$0</div><div class="stat-label">Neto</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION: Nuevo Evento -->
+        <section id="newEvent" class="section">
+            <div id="templatePickerBtn" style="margin-bottom:16px;"><button class="btn btn-secondary" onclick="showTemplatePicker()" style="padding:12px;">📑 Usar Template</button></div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title" id="formTitle">✨ Nuevo Evento</h3></div>
+                <div class="form-group"><label class="form-label">Nombre del Cliente</label><input type="text" class="form-input" id="clientName" placeholder="Nombre completo"></div>
+                <div class="form-group"><label class="form-label">WhatsApp</label><input type="tel" class="form-input" id="clientPhone" placeholder="+52 777 123 4567"></div>
+                <div class="form-group"><label class="form-label">Fecha del Evento</label><input type="date" class="form-input" id="eventDate"></div>
+                <div class="form-group"><label class="form-label">Lugar</label><select class="form-select" id="eventVenue"><option value="">Seleccionar lugar...</option><option value="Finca Paraíso">Finca Paraíso</option><option value="Hacienda de Cortés">Hacienda de Cortés</option><option value="Jardín Borda">Jardín Borda</option><option value="Otro">Otro</option></select></div>
+                <div class="form-group" id="otherVenueGroup" style="display:none;"><label class="form-label">Especificar Lugar</label><input type="text" class="form-input" id="otherVenue" placeholder="Nombre del lugar"></div>
+                <div class="form-group"><label class="form-label">Número de Invitados</label><input type="number" class="form-input" id="guestCount" placeholder="150"></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">🎂 Servicios</h3></div>
+                <div class="services-grid" id="servicesGrid">
+                    <div class="service-card" data-service="pastel" onclick="toggleService(this)"><div class="service-icon">🎂</div><div class="service-name">Pastel</div></div>
+                    <div class="service-card" data-service="mesa_dulces" onclick="toggleService(this)"><div class="service-icon">🍬</div><div class="service-name">Mesa Dulces</div></div>
+                    <div class="service-card" data-service="postres" onclick="toggleService(this)"><div class="service-icon">🧁</div><div class="service-name">Postres</div></div>
+                    <div class="service-card" data-service="quesos" onclick="toggleService(this)"><div class="service-icon">🧀</div><div class="service-name">Quesos</div></div>
+                    <div class="service-card" data-service="bebidas" onclick="toggleService(this)"><div class="service-icon">🥂</div><div class="service-name">Bebidas</div></div>
+                    <div class="service-card" data-service="otro" onclick="toggleService(this)"><div class="service-icon">📦</div><div class="service-name">Otro</div></div>
+                </div>
+                <div id="serviceDetails"></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">📦 Paquete Rápido</h3></div>
+                <div class="form-group"><label class="form-label">Seleccionar Paquete</label>
+                    <select class="form-select" id="catalogSelect" onchange="showCatalogOptions()">
+                        <option value="">Sin paquete (manual)</option>
+                        <optgroup label="🍬 Mesa de Dulces">
+                            <option value="basico">Paquete Basico</option>
+                            <option value="premium">Paquete Premium</option>
+                            <option value="plus">Paquete Plus</option>
+                        </optgroup>
+                        <optgroup label="🧱 Tasty Walls">
+                            <option value="fromage">Fromage & Friends (Quesos y charcutería)</option>
+                            <option value="sugar">Sugar Avenue (Dulces y botanas)</option>
+                            <option value="fiesta">The Fiesta Wall (Quesos y dulces)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div id="catalogOptions" style="display:none;">
+                    <div class="form-group"><label class="form-label">Número de invitados</label>
+                        <div style="display:flex;gap:8px;" id="catalogGuestBtns"></div>
+                    </div>
+                    <div id="catalogPreview" style="padding:12px;background:var(--bg-cream);border-radius:10px;margin-bottom:10px;display:none;"></div>
+                    <button class="btn btn-primary" onclick="applyCatalogToLines()" style="padding:12px;">✨ Aplicar Paquete a Cotización</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">📋 Líneas de Cotización</h3><button class="pay-method-btn active" onclick="addLineItem()" style="font-size:0.85rem;">➕ Agregar</button></div>
+                <div id="lineItemsList"></div>
+                <div style="text-align:right;font-weight:700;padding-top:10px;border-top:2px solid var(--border);margin-top:8px;font-size:1.1rem;">Total: <span id="lineItemsTotal">$0</span></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">💰 Precio y Comisiones</h3></div>
+                <div class="form-group"><label class="form-label">Precio Total del Evento</label><input type="number" class="form-input" id="totalPrice" placeholder="25000" oninput="calculatePayments()"></div>
+                <div class="info-box"><span class="info-box-icon">💡</span> Si agregas líneas de cotización arriba, el total se calcula automáticamente. Si no, ingresa el precio manualmente.</div>
+                <div class="toggle-group"><span class="toggle-label">¿Hay Wedding Planner?</span><label class="toggle"><input type="checkbox" id="hasPlanner" onchange="togglePlannerFields()"><span class="toggle-slider"></span></label></div>
+                <div id="plannerFields" style="display:none;">
+                    <div class="form-group"><label class="form-label">Nombre del Planner</label><input type="text" class="form-input" id="plannerName" placeholder="Nombre del wedding planner"></div>
+                    <div class="commission-group"><div class="form-group"><label class="form-label">Comisión (%)</label><input type="number" class="form-input commission-rate" id="commissionRate" value="10" oninput="calculatePayments()"></div></div>
+                </div>
+                <div class="amount-display"><div class="amount-label">Total a Cobrar</div><div class="amount-value" id="netAmount">$0</div></div>
+                <div class="payment-row" id="commissionRow" style="display:none;background:#fff8e6;padding:12px;border-radius:8px;margin-top:10px;"><span class="payment-label">🤝 Comisión Planner</span><span class="payment-value" id="commissionAmount" style="color:var(--warning);">$0</span></div>
+                <div id="paymentSummary" style="margin-top:12px;padding:12px;background:var(--bg-cream);border-radius:12px;">
+                    <div class="payment-row"><span class="payment-label">💰 Pagado</span><span class="payment-value" id="totalPaidDisplay" style="color:var(--success);">$0</span></div>
+                    <div class="payment-row"><span class="payment-label">⏳ Restante</span><span class="payment-value" id="remainingDisplay" style="color:var(--warning);">$0</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">💳 Registrar Pago</h3></div>
+                <div id="paymentsList"></div>
+                <div style="margin-top:12px;padding:16px;background:var(--bg-cream);border-radius:12px;">
+                    <div style="display:flex;gap:8px;margin-bottom:10px;">
+                        <div style="flex:1;"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">Monto</label><input type="number" class="form-input" id="payAmount" placeholder="5000" style="padding:12px;font-size:1rem;"></div>
+                        <div style="flex:1;"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">Fecha</label><input type="date" class="form-input" id="payDate" style="padding:12px;"></div>
+                    </div>
+                    <label class="form-label" style="font-size:0.8rem;margin-bottom:6px;">Método</label>
+                    <div style="display:flex;gap:6px;margin-bottom:10px;" id="payMethodBtns">
+                        <button class="pay-method-btn active" onclick="setPayMethod('efectivo')" style="flex:1;padding:10px;">💵 Efectivo</button>
+                        <button class="pay-method-btn" onclick="setPayMethod('transferencia')" style="flex:1;padding:10px;">🏦 Transfer</button>
+                        <button class="pay-method-btn" onclick="setPayMethod('tarjeta')" style="flex:1;padding:10px;">💳 Tarjeta</button>
+                    </div>
+                    <input type="text" class="form-input" id="payNote" placeholder="Nota (opcional)" style="padding:10px;margin-bottom:10px;">
+                    <button class="btn btn-success" onclick="addPaymentToForm()" style="padding:12px;width:100%;font-size:1rem;">➕ Registrar Pago</button>
+                </div>
+            </div>
+            <div class="card resico-card">
+                <div class="resico-header"><span class="resico-badge">RESICO</span><h3 class="resico-title">Resumen Financiero</h3></div>
+                <div class="info-box"><span class="info-box-icon">ℹ️</span> ISR RESICO mensual: 1% (hasta $25,000) | 1.5% ($25,001-$50,000) | 2% (más de $50,000). Se calcula en el Dashboard.</div>
+                <div class="resico-info">
+                    <div class="resico-item"><div class="resico-item-label">Total Evento</div><div class="resico-item-value" id="resicoGross">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Comisión Planner</div><div class="resico-item-value" id="resicoCommission" style="color:var(--warning);">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Tú Recibes</div><div class="resico-item-value net" id="resicoNet">$0</div></div>
+                </div>
+            </div>
+            <div class="card"><div class="card-header"><h3 class="card-title">📝 Notas</h3></div><div class="form-group"><textarea class="form-textarea" id="eventNotes" placeholder="Detalles adicionales, preferencias del cliente..."></textarea></div></div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">📷 Fotos</h3><span style="font-size:0.8rem;color:var(--text-light);" id="photoCount">0/5</span></div>
+                <div class="photo-grid" id="formPhotos"></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveEvent()">💾 Guardar Evento</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
+        <!-- SECTION: Lista de Eventos -->
+        <section id="events" class="section">
+            <div class="search-wrapper"><span class="search-icon">🔍</span><input type="text" class="search-input" id="eventSearch" placeholder="Buscar evento..." oninput="renderEvents()"></div>
+            <div class="tabs">
+                <button class="tab active" onclick="filterEvents('all', this)">Todos</button>
+                <button class="tab" onclick="filterEvents('pending', this)">Pendientes</button>
+                <button class="tab" onclick="filterEvents('partial', this)">Anticipo</button>
+                <button class="tab" onclick="filterEvents('paid', this)">Pagados</button>
+            </div>
+            <div id="eventsList"></div>
+            <button class="btn btn-secondary" style="margin-top:20px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
+        <!-- SECTION: Detalle de Evento -->
+        <section id="eventDetail" class="section"><div id="eventDetailContent"></div></section>
+
+        <!-- SECTION: Dashboard -->
+        <section id="dashboard" class="section">
+            <div class="month-selector"><button class="month-nav" onclick="changeMonth(-1)">←</button><span class="month-display" id="monthDisplay">Enero 2025</span><button class="month-nav" onclick="changeMonth(1)">→</button></div>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value" id="dashEventCount">0</div><div class="stat-label">Eventos</div></div>
+                <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" id="dashRevenue">$0</div><div class="stat-label">Ingresos</div></div>
+                <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-value" id="dashExpenses">$0</div><div class="stat-label">Gastos</div></div>
+                <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" id="dashNet">$0</div><div class="stat-label">Neto</div></div>
+            </div>
+            <div class="stats-grid" id="dashExtraStats"></div>
+            <div class="card"><div class="card-header"><h3 class="card-title">📈 Ingresos del Año</h3></div><div class="chart-container"><canvas id="revenueChart"></canvas></div></div>
+            <div class="card resico-card">
+                <div class="resico-header"><span class="resico-badge">RESICO</span><h3 class="resico-title">Impuestos del Mes</h3></div>
+                <div class="info-box"><span class="info-box-icon">ℹ️</span> ISR RESICO mensual: 1% (hasta $25,000) | 1.5% ($25,001-$50,000) | 2% (más de $50,000). Pagar antes del día 17 del mes siguiente.</div>
+                <div class="resico-info">
+                    <div class="resico-item"><div class="resico-item-label">Ingresos del Mes</div><div class="resico-item-value" id="dashResicoBase">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Tasa Aplicable</div><div class="resico-item-value" id="dashResicoRate">0%</div></div>
+                    <div class="resico-item"><div class="resico-item-label">ISR a Pagar</div><div class="resico-item-value tax" id="dashResicoTax">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Utilidad Neta</div><div class="resico-item-value net" id="dashNetProfit">$0</div></div>
+                </div>
+            </div>
+            <div class="card"><div class="card-header"><h3 class="card-title">🤝 Comisiones del Mes</h3></div><div id="commissionSummary"></div></div>
+            <button class="btn btn-whatsapp" onclick="sendMonthlyReport()">📱 Enviar Reporte por WhatsApp</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
+        <!-- SECTION: Gastos -->
+        <section id="expenses" class="section">
+            <div class="month-selector"><button class="month-nav" onclick="changeExpenseMonth(-1)">←</button><span class="month-display" id="expenseMonthDisplay">Enero 2025</span><button class="month-nav" onclick="changeExpenseMonth(1)">→</button></div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">➕ Agregar Gasto</h3></div>
+                <div class="form-group"><label class="form-label">Descripción</label><input type="text" class="form-input" id="expenseDesc" placeholder="Ingredientes, transporte..."></div>
+                <div class="form-group"><label class="form-label">Categoría</label><select class="form-select" id="expenseCategory"><option value="ingredientes">🥚 Ingredientes</option><option value="transporte">🚗 Transporte</option><option value="equipo">🔧 Equipo</option><option value="marketing">📣 Marketing</option><option value="otro">📦 Otro</option></select></div>
+                <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="expenseAmount" placeholder="500"></div>
+                <button class="btn btn-primary" onclick="addExpense()">➕ Agregar Gasto</button>
+            </div>
+            <div class="card"><div class="card-header"><h3 class="card-title">📋 Gastos del Mes</h3><span class="card-badge badge-pending" id="totalExpensesBadge">$0</span></div><div id="expensesList"></div></div>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
+        <!-- SECTION: Templates -->
+        <section id="templates" class="section">
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">📑 Mis Templates</h3></div>
+                <div id="templatesList"></div>
+                <div id="noTemplates" style="text-align:center;padding:30px;color:var(--text-medium);"><div style="font-size:2.5rem;margin-bottom:10px;">📑</div><p>Sin templates guardados</p><p style="font-size:0.85rem;">Guarda un evento como template desde su detalle</p></div>
+            </div>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
+        <!-- SECTION: Service Form -->
+        <section id="serviceForm" class="section"><div id="serviceFormContent"></div></section>
+    </main>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notifModal" style="display:none;"><div class="modal-backdrop" onclick="toggleNotifications()"></div><div class="modal-sheet"><div class="modal-handle"></div><h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:16px;">🔔 Notificaciones</h3><div id="notifList"></div></div></div>
+
+    <!-- Template Picker Modal -->
+    <div id="templateModal" style="display:none;"><div class="modal-backdrop" onclick="closeTemplatePicker()"></div><div class="modal-sheet"><div class="modal-handle"></div><h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:16px;">📑 Seleccionar Template</h3><div id="templatePickerList"></div></div></div>
+
+    <!-- Photo Full Modal -->
+    <div id="photoFullModal" style="display:none;"></div>
+
+    <script>
+    // ==================== FIREBASE CONFIG ====================
+    firebase.initializeApp({apiKey:"AIzaSyDueowWpJEKAuoYKrsS0ddRelxuspIfhTA",authDomain:"la-petite-parisienne.firebaseapp.com",projectId:"la-petite-parisienne",storageBucket:"la-petite-parisienne.firebasestorage.app",messagingSenderId:"377979404609",appId:"1:377979404609:web:7b32a282f8201fdface1c0"});
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code)});
+
+    let currentUser = null;
+    let syncStatus = 'synced';
+    let unsubEvents = null;
+    let unsubExpenses = null;
+    let revenueChart = null;
+
+    // ==================== DATA STORAGE ====================
+    let appData = { events: [], expenses: [], settings: { defaultResicoRate: 2.5 } };
+    let currentMonth = new Date().getMonth();
+    let currentYear = new Date().getFullYear();
+    let expenseMonth = new Date().getMonth();
+    let expenseYear = new Date().getFullYear();
+    let currentEventId = null;
+    let currentFilter = 'all';
+    let selectedServices = [];
+    let editingEventId = null;
+    let formData = { newEvent: {}, serviceForm: {} };
+    // New feature state
+    let currentPayments = [];
+    let currentPayMethod = 'efectivo';
+    let formPhotos = [];
+    let lineItems = [];
+    let notifications = [];
+    let appTemplates = JSON.parse(localStorage.getItem('lpp_templates') || '[]');
+    let isOnline = navigator.onLine;
+
+    // ==================== AUTH ====================
+    auth.onAuthStateChanged(user => {
+        currentUser = user;
+        document.getElementById('loadingScreen').style.display = 'none';
+        if (user) {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContainer').classList.add('visible');
+            document.getElementById('headerUser').textContent = '👤 ' + user.email.split('@')[0];
+            setupRealtimeListeners();
+        } else {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('appContainer').classList.remove('visible');
+            if (unsubEvents) unsubEvents();
+            if (unsubExpenses) unsubExpenses();
+        }
+    });
+
+    async function login() {
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        const errorEl = document.getElementById('loginError');
+        if (!email || !password) { errorEl.textContent = 'Por favor ingresa email y contraseña'; errorEl.classList.add('show'); return; }
+        try { await auth.signInWithEmailAndPassword(email, password); }
+        catch (e) {
+            let msg = 'Error de conexión';
+            if (e.code === 'auth/invalid-email') msg = 'Email inválido';
+            else if (e.code === 'auth/user-not-found') msg = 'Usuario no encontrado';
+            else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Contraseña incorrecta';
+            errorEl.textContent = msg; errorEl.classList.add('show');
+        }
+    }
+    function logout() { if (confirm('¿Cerrar sesión?')) auth.signOut(); }
+
+    function updateSyncStatus(status) {
+        syncStatus = status;
+        const dot = document.getElementById('syncDot');
+        const text = document.getElementById('syncText');
+        dot.className = 'sync-dot';
+        if (status === 'syncing') { dot.classList.add('syncing'); text.textContent = 'Sincronizando...'; }
+        else if (status === 'error') { dot.classList.add('error'); text.textContent = 'Sin conexión'; }
+        else { text.textContent = 'Guardado ☁️'; }
+    }
+
+    // ==================== REALTIME LISTENERS (offline-first) ====================
+    function migrateEvent(ev) {
+        if (!ev.payments) ev.payments = [];
+        if (!ev.photos) ev.photos = [];
+        if (!ev.lineItems) ev.lineItems = [];
+        // Auto-calculate status from payments
+        const paid = ev.payments.reduce((s,p)=>s+(p.amount||0),0);
+        if(paid >= ev.totalPrice && ev.totalPrice > 0) ev.status = 'paid';
+        else if(paid > 0) ev.status = 'partial';
+        else if(ev.status === undefined) ev.status = 'pending';
+        return ev;
+    }
+
+    function setupRealtimeListeners() {
+        // Prevent duplicate listeners
+        if (unsubEvents) { unsubEvents(); unsubEvents = null; }
+        if (unsubExpenses) { unsubExpenses(); unsubExpenses = null; }
+        updateSyncStatus('syncing');
+        // Events listener - update data always but debounce UI refresh
+        unsubEvents = db.collection('dm_events').orderBy('eventDate','asc').onSnapshot({includeMetadataChanges:true}, snap => {
+            const hasPending = snap.docs.some(d => d.metadata.hasPendingWrites);
+            updateSyncStatus(hasPending ? 'syncing' : 'synced');
+            // Build fresh list from Firestore (this is the source of truth)
+            const freshEvents = snap.docs.map(d => migrateEvent({id:d.id,...d.data()}));
+            // Keep any local_ events that haven't been synced yet (no Firestore doc yet)
+            const firestoreIds = new Set(freshEvents.map(e => e.id));
+            const pendingLocals = appData.events.filter(e => e.id.startsWith('local_') && !firestoreIds.has(e.id));
+            appData.events = [...freshEvents, ...pendingLocals];
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+            computeNotifications();
+            initializeApp();
+            updateQuickStats();
+        }, err => {
+            updateSyncStatus('error');
+            const cached = localStorage.getItem('dulcesMomentosData');
+            if (cached) appData = JSON.parse(cached);
+            initializeApp();
+            updateQuickStats();
+        });
+        // Expenses listener
+        unsubExpenses = db.collection('dm_expenses').onSnapshot(snap => {
+            appData.expenses = snap.docs.map(d => ({id:d.id,...d.data()}));
+            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+            refreshUI();
+            updateQuickStats();
+        }, err => {});
+    }
+
+    // Legacy save functions (still used for writes)
+    async function saveEventToFirebase(event) {
+        updateSyncStatus('syncing');
+        try {
+            // Strip 'id' from the data written to Firestore (id is the doc key, not a field)
+            const data = Object.assign({}, event);
+            delete data.id;
+            if (event.id && !event.id.startsWith('local_')) {
+                await db.collection('dm_events').doc(event.id).set(data);
+            } else {
+                // New event: add to Firestore, get real id, remove local_ entry
+                const oldId = event.id;
+                const ref = await db.collection('dm_events').add(data);
+                event.id = ref.id;
+                // Update in appData array (replace local_ entry)
+                const idx = appData.events.findIndex(e => e.id === oldId);
+                if (idx !== -1) appData.events[idx].id = ref.id;
+            }
+            updateSyncStatus('synced');
+        } catch(e) { updateSyncStatus('error'); }
+        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+    }
+    async function deleteEventFromFirebase(eventId) {
+        updateSyncStatus('syncing');
+        try {
+            if (eventId && !eventId.startsWith('local_')) await db.collection('dm_events').doc(eventId).delete();
+            updateSyncStatus('synced');
+        } catch(e) { updateSyncStatus('error'); }
+        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+    }
+    async function saveExpenseToFirebase(expense) {
+        updateSyncStatus('syncing');
+        try {
+            const data = Object.assign({}, expense);
+            delete data.id;
+            if (expense.id && !expense.id.startsWith('local_')) { await db.collection('dm_expenses').doc(expense.id).set(data); }
+            else {
+                const oldId = expense.id;
+                const ref = await db.collection('dm_expenses').add(data);
+                expense.id = ref.id;
+                const idx = appData.expenses.findIndex(e => e.id === oldId);
+                if (idx !== -1) appData.expenses[idx].id = ref.id;
+            }
+            updateSyncStatus('synced');
+        } catch(e) { updateSyncStatus('error'); }
+        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+    }
+    async function deleteExpenseFromFirebase(expenseId) {
+        updateSyncStatus('syncing');
+        try {
+            if (expenseId && !expenseId.startsWith('local_')) await db.collection('dm_expenses').doc(expenseId).delete();
+            updateSyncStatus('synced');
+        } catch(e) { updateSyncStatus('error'); }
+        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+    }
+
+    function loadData() { const s=localStorage.getItem('dulcesMomentosData'); if(s) appData=JSON.parse(s); }
+    function saveData() { localStorage.setItem('dulcesMomentosData', JSON.stringify(appData)); }
+
+    // ==================== ONLINE/OFFLINE ====================
+    window.addEventListener('online', ()=>{ isOnline=true; document.getElementById('offlineBanner').classList.remove('visible'); });
+    window.addEventListener('offline', ()=>{ isOnline=false; document.getElementById('offlineBanner').classList.add('visible'); });
+
+    // ==================== INITIALIZATION ====================
+    let _appInitialized = false;
+    let _refreshTimer = null;
+
+    function initializeAppOnce() {
+        if (_appInitialized) return;
+        _appInitialized = true;
+        const today = new Date().toISOString().split('T')[0];
+        const ed = document.getElementById('eventDate');
+        if (ed && !ed.value) ed.value = today;
+        const pd = document.getElementById('payDate');
+        if (pd && !pd.value) pd.value = today;
+        const venueEl = document.getElementById('eventVenue');
+        if (venueEl) venueEl.addEventListener('change', function() { document.getElementById('otherVenueGroup').style.display = this.value==='Otro'?'block':'none'; });
+        updateMonthDisplay();
+        updateExpenseMonthDisplay();
+        // Update PDF template status
+        const ts=document.getElementById('templateStatus');
+        const mb=document.getElementById('mainTemplateBtn');
+        if(pdfTemplateImg){
+            if(ts) ts.textContent='✅ Template cargado';
+            if(mb) mb.innerHTML='🖼️ ✅ Template PDF cargado (cambiar)';
+        } else {
+            if(ts) ts.textContent='⚠️ Carga tu imagen de cotización para generar PDFs bonitos';
+        }
+    }
+
+    // Called on each snapshot - debounced to avoid rapid re-renders
+    function refreshUI() {
+        if (_refreshTimer) clearTimeout(_refreshTimer);
+        _refreshTimer = setTimeout(function() {
+            _refreshTimer = null;
+            renderEvents();
+            renderExpenses();
+            renderTemplates();
+            // If dashboard is visible, refresh it too
+            const dashEl = document.getElementById('dashboard');
+            if (dashEl && dashEl.classList.contains('active')) { updateDashboard(); renderChart(); }
+        }, 100);
+    }
+
+    function initializeApp() {
+        initializeAppOnce();
+        refreshUI();
+    }
+
+    // ==================== NAVIGATION ====================
+    function showSection(sectionId) {
+        saveFormData();
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById(sectionId).classList.add('active');
+        const backBtn = document.getElementById('backToMenuBtn');
+        backBtn.style.display = sectionId==='mainMenu' ? 'none' : 'flex';
+        if (sectionId==='newEvent' && !editingEventId) restoreFormData();
+        if (sectionId==='events') renderEvents();
+        else if (sectionId==='dashboard') { updateDashboard(); setTimeout(renderChart,200); }
+        else if (sectionId==='expenses') renderExpenses();
+        else if (sectionId==='templates') renderTemplates();
+        computeNotifications();
+        window.scrollTo(0,0);
+    }
+    function goToMainMenu() { showSection('mainMenu'); updateQuickStats(); }
+
+    // ==================== FORM DATA PRESERVATION ====================
+    function saveFormData() {
+        const s = document.getElementById('newEvent');
+        if (s && s.classList.contains('active')) {
+            formData.newEvent = {
+                clientName: document.getElementById('clientName').value,
+                clientPhone: document.getElementById('clientPhone').value,
+                eventDate: document.getElementById('eventDate').value,
+                eventVenue: document.getElementById('eventVenue').value,
+                otherVenue: document.getElementById('otherVenue').value,
+                guestCount: document.getElementById('guestCount').value,
+                totalPrice: document.getElementById('totalPrice').value,
+                hasPlanner: document.getElementById('hasPlanner').checked,
+                plannerName: document.getElementById('plannerName').value,
+                commissionRate: document.getElementById('commissionRate').value,
+                eventNotes: document.getElementById('eventNotes').value,
+                selectedServices: [...selectedServices],
+                payments: [...currentPayments],
+                photos: [...formPhotos],
+                lineItems: [...lineItems]
+            };
+        }
+    }
+    function restoreFormData() {
+        if (formData.newEvent && Object.keys(formData.newEvent).length > 0) {
+            const d = formData.newEvent;
+            document.getElementById('clientName').value = d.clientName||'';
+            document.getElementById('clientPhone').value = d.clientPhone||'';
+            document.getElementById('eventDate').value = d.eventDate||'';
+            document.getElementById('eventVenue').value = d.eventVenue||'';
+            document.getElementById('otherVenue').value = d.otherVenue||'';
+            document.getElementById('guestCount').value = d.guestCount||'';
+            document.getElementById('totalPrice').value = d.totalPrice||'';
+            document.getElementById('hasPlanner').checked = d.hasPlanner||false;
+            document.getElementById('plannerName').value = d.plannerName||'';
+            document.getElementById('commissionRate').value = d.commissionRate||'10';
+            document.getElementById('eventNotes').value = d.eventNotes||'';
+            selectedServices = d.selectedServices||[];
+            currentPayments = d.payments||[];
+            formPhotos = d.photos||[];
+            lineItems = d.lineItems||[];
+            document.querySelectorAll('.service-card').forEach(c => {
+                c.classList.toggle('selected', selectedServices.includes(c.dataset.service));
+            });
+            togglePlannerFields(); calculatePayments();
+            if (d.eventVenue==='Otro') document.getElementById('otherVenueGroup').style.display='block';
+            renderFormPayments(); renderFormPhotos(); renderLineItems();
+        }
+    }
+    function clearFormData() {
+        formData.newEvent = {};
+        selectedServices = []; editingEventId = null;
+        currentPayments = []; formPhotos = []; lineItems = [];
+        const ft = document.getElementById('formTitle'); if(ft) ft.textContent = '✨ Nuevo Evento';
+        document.getElementById('clientName').value = '';
+        document.getElementById('clientPhone').value = '';
+        document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('eventVenue').value = '';
+        document.getElementById('otherVenue').value = '';
+        document.getElementById('guestCount').value = '';
+        document.getElementById('totalPrice').value = '';
+        document.getElementById('hasPlanner').checked = false;
+        document.getElementById('plannerName').value = '';
+        document.getElementById('commissionRate').value = '10';
+        document.getElementById('eventNotes').value = '';
+        document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById('plannerFields').style.display = 'none';
+        document.getElementById('commissionRow').style.display = 'none';
+        document.getElementById('otherVenueGroup').style.display = 'none';
+        const pd = document.getElementById('payDate'); if(pd) pd.value = new Date().toISOString().split('T')[0];
+        calculatePayments(); renderFormPayments(); renderFormPhotos(); renderLineItems();
+    }
+
+    // ==================== SERVICES ====================
+    function toggleService(el) { const s=el.dataset.service; el.classList.toggle('selected'); if(el.classList.contains('selected')){if(!selectedServices.includes(s))selectedServices.push(s);}else{selectedServices=selectedServices.filter(x=>x!==s);} updateServiceDetails(); }
+    function updateServiceDetails() {
+        const c=document.getElementById('serviceDetails'); if(selectedServices.length===0){c.innerHTML='';return;}
+        const nm={pastel:'🎂 Pastel',mesa_dulces:'🍬 Mesa de Dulces',postres:'🧁 Postres',quesos:'🧀 Mesa de Quesos',bebidas:'🥂 Bebidas',otro:'📦 Otro'};
+        let h='<div style="margin-top:15px;">';
+        selectedServices.forEach(s=>{ h+=`<div class="form-group"><label class="form-label">${nm[s]} - Detalles</label><input type="text" class="form-input" id="service_${s}_details" placeholder="Descripción específica..." value="${formData.newEvent['service_'+s+'_details']||''}"></div>`; });
+        h+='</div>'; c.innerHTML=h;
+    }
+    function showServiceForm(st) {
+        const nm={pastel:{icon:'🎂',name:'Pastel de Bodas'},mesa_dulces:{icon:'🍬',name:'Mesa de Dulces'},postres:{icon:'🧁',name:'Postres'},quesos:{icon:'🧀',name:'Mesa de Quesos'}};
+        const s=nm[st];
+        document.getElementById('serviceFormContent').innerHTML=`<div class="card"><div class="card-header"><h3 class="card-title">${s.icon} ${s.name}</h3></div><p style="color:var(--text-medium);margin-bottom:20px;">¿Quieres crear un nuevo evento con este servicio?</p><button class="btn btn-primary" onclick="startEventWithService('${st}')">✨ Crear Evento con ${s.name}</button><button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button></div>`;
+        showSection('serviceForm');
+    }
+    function startEventWithService(st) { selectedServices=[st]; formData.newEvent={selectedServices:[st]}; showSection('newEvent'); document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',c.dataset.service===st);}); updateServiceDetails(); }
+
+    // ==================== PAYMENTS & CALCULATIONS ====================
+    function togglePlannerFields() {
+        const hp=document.getElementById('hasPlanner').checked;
+        document.getElementById('plannerFields').style.display=hp?'block':'none';
+        document.getElementById('commissionRow').style.display=hp?'flex':'none';
+        calculatePayments();
+    }
+    function calculatePayments() {
+        const tp=parseFloat(document.getElementById('totalPrice').value)||0;
+        const hp=document.getElementById('hasPlanner').checked;
+        const cr=parseFloat(document.getElementById('commissionRate').value)||10;
+        const commission=hp?tp*(cr/100):0;
+        document.getElementById('netAmount').textContent=formatCurrency(tp);
+        document.getElementById('commissionAmount').textContent=formatCurrency(commission);
+        document.getElementById('resicoGross').textContent=formatCurrency(tp);
+        document.getElementById('resicoCommission').textContent=formatCurrency(commission);
+        document.getElementById('resicoNet').textContent=formatCurrency(tp);
+        // Payment summary
+        const paid=currentPayments.reduce((s,p)=>s+(p.amount||0),0);
+        const el1=document.getElementById('totalPaidDisplay'); if(el1) el1.textContent=formatCurrency(paid);
+        const el2=document.getElementById('remainingDisplay'); if(el2) el2.textContent=formatCurrency(Math.max(0,tp-paid));
+    }
+    function formatCurrency(a) { return '$'+a.toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+    // ==================== MULTI-PAYMENT ====================
+    function setPayMethod(m) { currentPayMethod=m; document.querySelectorAll('#payMethodBtns .pay-method-btn').forEach(b=>{b.classList.toggle('active',b.textContent.toLowerCase().includes(m.substring(0,4)));}); }
+    function addPaymentToForm() {
+        const a=parseFloat(document.getElementById('payAmount').value)||0;
+        const d=document.getElementById('payDate').value;
+        const n=document.getElementById('payNote').value;
+        if(a<=0){alert('Ingresa un monto válido');return;}
+        currentPayments.push({amount:a,date:d||new Date().toISOString().split('T')[0],method:currentPayMethod,note:n});
+        document.getElementById('payAmount').value='';
+        document.getElementById('payNote').value='';
+        renderFormPayments(); calculatePayments();
+    }
+    function removePayment(i) { currentPayments.splice(i,1); renderFormPayments(); calculatePayments(); }
+    function renderFormPayments() {
+        const c=document.getElementById('paymentsList'); if(!c) return;
+        const mi={'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
+        const total=currentPayments.reduce((s,p)=>s+(p.amount||0),0);
+        if(currentPayments.length===0){c.innerHTML='<p style="color:var(--text-light);text-align:center;padding:8px;">Sin pagos registrados</p>';return;}
+        c.innerHTML=currentPayments.map((p,i)=>`<div class="payment-history-item"><div><strong>${mi[p.method]||'💵'} ${formatCurrency(p.amount)}</strong><br><small style="color:var(--text-medium);">${formatDate(p.date)}${p.note?' - '+p.note:''}</small></div><button class="delete-btn" onclick="removePayment(${i})" style="width:28px;height:28px;font-size:0.9rem;">×</button></div>`).join('')+`<div style="text-align:right;font-weight:700;padding-top:8px;border-top:2px solid var(--border);margin-top:4px;">Total pagado: ${formatCurrency(total)}</div>`;
+    }
+
+    // ==================== PHOTOS ====================
+    function compressImage(file, cb) {
+        const r=new FileReader(); r.onload=function(e){
+            const img=new Image(); img.onload=function(){
+                const max=800; let w=img.width,h=img.height;
+                if(w>max||h>max){if(w>h){h=h*(max/w);w=max;}else{w=w*(max/h);h=max;}}
+                const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+                canvas.getContext('2d').drawImage(img,0,0,w,h);
+                let data=canvas.toDataURL('image/jpeg',0.6);
+                if(data.length>200000) data=canvas.toDataURL('image/jpeg',0.4);
+                cb(data);
+            }; img.src=e.target.result;
+        }; r.readAsDataURL(file);
+    }
+    function addFormPhoto() {
+        if(formPhotos.length>=5){alert('Máximo 5 fotos');return;}
+        const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+        inp.onchange=function(){if(inp.files[0])compressImage(inp.files[0],data=>{formPhotos.push(data);renderFormPhotos();});};
+        inp.click();
+    }
+    function removeFormPhoto(i) { formPhotos.splice(i,1); renderFormPhotos(); }
+    function renderFormPhotos() {
+        const c=document.getElementById('formPhotos'); if(!c)return;
+        const pc=document.getElementById('photoCount'); if(pc) pc.textContent=formPhotos.length+'/5';
+        c.innerHTML=formPhotos.map((p,i)=>`<div style="position:relative;display:inline-block;"><img src="${p}" class="photo-thumb" onclick="viewPhoto(${i},'form')"><button onclick="removeFormPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;font-size:0.7rem;cursor:pointer;">×</button></div>`).join('')+(formPhotos.length<5?'<div class="photo-add-btn" onclick="addFormPhoto()">+</div>':'');
+    }
+    function viewPhoto(i,src) {
+        const photos = src==='form' ? formPhotos : (appData.events.find(e=>e.id===currentEventId)||{}).photos||[];
+        if(!photos[i])return;
+        document.getElementById('photoFullModal').style.display='block';
+        document.getElementById('photoFullModal').innerHTML=`<div class="photo-full-modal" onclick="closePhotoModal()"><img src="${photos[i]}" style="max-width:95%;max-height:90%;object-fit:contain;border-radius:8px;"><div style="position:absolute;top:20px;right:20px;color:white;font-size:2rem;cursor:pointer;">✕</div></div>`;
+    }
+    function closePhotoModal() { document.getElementById('photoFullModal').style.display='none'; document.getElementById('photoFullModal').innerHTML=''; }
+
+    // ==================== CATALOG / PAQUETES ====================
+    const CATALOG = {
+        basico: {
+            name: 'Paquete Basico', icon: '🍬',
+            desc: 'Snacks únicamente',
+            tiers: [
+                {guests:100, price:75, note:'8 variedades de snack'},
+                {guests:150, price:70, note:'10 variedades de snack'},
+                {guests:200, price:60, note:'12 variedades de snack'}
+            ],
+            includes: 'Incluye decoraciones de flores, bases con diseño personalizado para montaje, bolsas personalizadas. Incluye transporte montaje y desmontaje. No incluye mesa.'
+        },
+        premium: {
+            name: 'Paquete Premium', icon: '🍬🧁',
+            desc: 'Snacks + Postres',
+            tiers: [
+                {guests:100, price:95, note:'6 variedades de snack + 4 postres'},
+                {guests:150, price:85, note:'8 variedades de snack + 5 postres'},
+                {guests:200, price:80, note:'10 variedades de snack + 6 postres'}
+            ],
+            includes: 'Incluye decoraciones de flores, bases con diseño personalizado para montaje, bolsas personalizadas. Incluye transporte montaje y desmontaje. No incluye mesa.'
+        },
+        plus: {
+            name: 'Paquete Plus', icon: '🍬🧁🧀',
+            desc: 'Snacks + Postres + Quesos',
+            tiers: [
+                {guests:100, price:150, note:'6 snack + 4 postres + 4 quesos'},
+                {guests:150, price:120, note:'8 snack + 5 postres + 5 quesos'},
+                {guests:200, price:100, note:'10 snack + 6 postres + 6 quesos'}
+            ],
+            includes: 'Incluye decoraciones de flores, bases con diseño personalizado para montaje, bolsas personalizadas. Incluye transporte montaje y desmontaje. No incluye mesa.'
+        },
+        fromage: {
+            name: 'Fromage & Friends', icon: '🧀',
+            desc: 'Quesos y charcutería - Muro gourmet',
+            tiers: [
+                {guests:100, price:0, fixed:11000, note:'Muro de quesos y charcutería'},
+                {guests:150, price:0, fixed:15000, note:'Muro de quesos y charcutería'},
+                {guests:200, price:0, fixed:18000, note:'Muro de quesos y charcutería'}
+            ],
+            includes: 'Sabores que se sirven en vertical.'
+        },
+        sugar: {
+            name: 'Sugar Avenue', icon: '🍭',
+            desc: 'Dulces y botanas - Muro gourmet',
+            tiers: [
+                {guests:100, price:0, fixed:9000, note:'Muro de dulces y botanas'},
+                {guests:150, price:0, fixed:12000, note:'Muro de dulces y botanas'},
+                {guests:200, price:0, fixed:15000, note:'Muro de dulces y botanas'}
+            ],
+            includes: 'Sabores que se sirven en vertical.'
+        },
+        fiesta: {
+            name: 'The Fiesta Wall', icon: '🎉',
+            desc: 'Quesos y dulces - Muro gourmet',
+            tiers: [
+                {guests:100, price:0, fixed:12000, note:'Muro de quesos y dulces'},
+                {guests:150, price:0, fixed:16000, note:'Muro de quesos y dulces'},
+                {guests:200, price:0, fixed:19000, note:'Muro de quesos y dulces'}
+            ],
+            includes: 'Sabores que se sirven en vertical.'
+        }
+    };
+
+    let selectedCatalogTier = null;
+
+    function showCatalogOptions() {
+        const sel=document.getElementById('catalogSelect').value;
+        const optDiv=document.getElementById('catalogOptions');
+        const prevDiv=document.getElementById('catalogPreview');
+        if(!sel){optDiv.style.display='none';selectedCatalogTier=null;return;}
+        optDiv.style.display='block';
+        prevDiv.style.display='none';
+        selectedCatalogTier=null;
+        const pkg=CATALOG[sel]; if(!pkg)return;
+        const btnsDiv=document.getElementById('catalogGuestBtns');
+        btnsDiv.innerHTML=pkg.tiers.map((t,i)=>`<button class="pay-method-btn" onclick="selectCatalogTier('${sel}',${i})" id="tierBtn${i}" style="flex:1;padding:12px;text-align:center;"><div style="font-weight:700;font-size:1.1rem;">${t.guests}</div><div style="font-size:0.8rem;">invitados</div><div style="font-weight:700;color:var(--primary-dark);margin-top:4px;">${t.fixed?formatCurrency(t.fixed):'$'+t.price+'/pax'}</div></button>`).join('');
+    }
+
+    function selectCatalogTier(pkgKey,tierIdx) {
+        const pkg=CATALOG[pkgKey]; if(!pkg)return;
+        selectedCatalogTier={pkg:pkgKey,tier:tierIdx};
+        // Highlight selected button
+        document.querySelectorAll('#catalogGuestBtns .pay-method-btn').forEach((b,i)=>{b.classList.toggle('active',i===tierIdx);});
+        // Show preview
+        const t=pkg.tiers[tierIdx];
+        const total=t.fixed||(t.price*t.guests);
+        const prevDiv=document.getElementById('catalogPreview');
+        prevDiv.style.display='block';
+        prevDiv.innerHTML=`<div style="font-weight:700;font-size:1.05rem;margin-bottom:6px;">${pkg.icon} ${pkg.name}</div><div style="font-size:0.9rem;color:var(--text-medium);margin-bottom:4px;">${t.note}</div><div style="font-size:0.85rem;color:var(--text-medium);margin-bottom:8px;">${pkg.includes}</div><div style="font-weight:700;font-size:1.2rem;color:var(--primary-dark);">Total: ${formatCurrency(total)}</div>`;
+    }
+
+    function applyCatalogToLines() {
+        if(!selectedCatalogTier){alert('Selecciona un número de invitados primero');return;}
+        const pkgKey=selectedCatalogTier.pkg;
+        const tierIdx=selectedCatalogTier.tier;
+        const pkg=CATALOG[pkgKey]; if(!pkg)return;
+        const t=pkg.tiers[tierIdx];
+        const isFixed=!!t.fixed;
+        const total=isFixed?t.fixed:(t.price*t.guests);
+
+        // Add as line item(s)
+        lineItems.push({
+            description: pkg.name + ' ' + t.guests + 'pers',
+            unitPrice: isFixed ? total : t.price,
+            quantity: isFixed ? 1 : t.guests,
+            note: t.note
+        });
+        // Add transport line
+        lineItems.push({
+            description: 'Transporte montaje y desmontaje',
+            unitPrice: 0,
+            quantity: 1,
+            note: ''
+        });
+        renderLineItems();
+        // Also set guest count
+        document.getElementById('guestCount').value = t.guests;
+        // Reset catalog selector
+        selectedCatalogTier=null;
+        document.getElementById('catalogSelect').value='';
+        document.getElementById('catalogOptions').style.display='none';
+    }
+
+    // ==================== LINE ITEMS ====================
+    function addLineItem() {
+        lineItems.push({description:'',unitPrice:0,quantity:1,note:''});
+        renderLineItems();
+    }
+    function removeLineItem(i) { lineItems.splice(i,1); recalcLineItems(); renderLineItems(); }
+    function updateLineItem(i,field,val) {
+        if(field==='unitPrice'||field==='quantity') lineItems[i][field]=parseFloat(val)||0;
+        else lineItems[i][field]=val;
+        recalcLineItems();
+    }
+    function recalcLineItems() {
+        if(lineItems.length===0) return;
+        const total=lineItems.reduce((s,li)=>s+(li.unitPrice||0)*(li.quantity||1),0);
+        const el=document.getElementById('lineItemsTotal'); if(el) el.textContent=formatCurrency(total);
+        // Auto-fill totalPrice if line items exist
+        if(total>0){
+            document.getElementById('totalPrice').value=total;
+            calculatePayments();
+        }
+    }
+    function renderLineItems() {
+        const c=document.getElementById('lineItemsList'); if(!c) return;
+        if(lineItems.length===0){c.innerHTML='<p style="color:var(--text-light);text-align:center;padding:12px;">Sin líneas — agrega una descripción con precio y cantidad</p>';document.getElementById('lineItemsTotal').textContent='$0';return;}
+        c.innerHTML=lineItems.map((li,i)=>{
+            const sub=(li.unitPrice||0)*(li.quantity||1);
+            return `<div class="line-item"><div class="line-item-row"><input type="text" class="form-input line-item-desc" placeholder="Descripción" value="${li.description||''}" onchange="updateLineItem(${i},'description',this.value)"><input type="number" class="form-input line-item-price" placeholder="Precio" value="${li.unitPrice||''}" oninput="updateLineItem(${i},'unitPrice',this.value)"><input type="number" class="form-input line-item-qty" placeholder="Qtd" value="${li.quantity||1}" oninput="updateLineItem(${i},'quantity',this.value)"><div class="line-item-subtotal">${formatCurrency(sub)}</div><button class="delete-btn" onclick="removeLineItem(${i})" style="width:28px;height:28px;font-size:0.9rem;flex-shrink:0;">×</button></div>${li.note||i===lineItems.length-1?`<input type="text" class="form-input line-item-note" placeholder="Detalle (ej: sabor, diseño...)" value="${li.note||''}" onchange="updateLineItem(${i},'note',this.value)">`:''}</div>`;
+        }).join('');
+        recalcLineItems();
+    }
+
+    // ==================== EVENTS CRUD ====================
+    // Auto-calculate status from payments
+    function calcStatus(payments, totalPrice) {
+        const paid=(payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+        if(paid>=totalPrice && totalPrice>0) return 'paid';
+        if(paid>0) return 'partial';
+        return 'pending';
+    }
+
+    function saveEvent() {
+        const clientName=document.getElementById('clientName').value.trim();
+        const clientPhone=document.getElementById('clientPhone').value.trim();
+        const eventDate=document.getElementById('eventDate').value;
+        const totalPrice=parseFloat(document.getElementById('totalPrice').value)||0;
+        if(!clientName||!eventDate||totalPrice<=0){alert('Por favor completa los campos obligatorios: Nombre, Fecha y Precio');return;}
+        const hasPlanner=document.getElementById('hasPlanner').checked;
+        const commissionRate=parseFloat(document.getElementById('commissionRate').value)||10;
+        let venue=document.getElementById('eventVenue').value;
+        if(venue==='Otro') venue=document.getElementById('otherVenue').value||'Otro';
+        const serviceDetails={};
+        selectedServices.forEach(s=>{const d=document.getElementById('service_'+s+'_details');if(d)serviceDetails[s]=d.value;});
+        const commission=hasPlanner?totalPrice*(commissionRate/100):0;
+        const status=calcStatus(currentPayments, totalPrice);
+
+        if(editingEventId){
+            const idx=appData.events.findIndex(e=>e.id===editingEventId);
+            if(idx!==-1){
+                const ex=appData.events[idx];
+                const upd={...ex,clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,notes:document.getElementById('eventNotes').value,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],status,updatedAt:new Date().toISOString()};
+                appData.events[idx]=upd; saveData(); saveEventToFirebase(upd);
+                editingEventId=null; clearFormData();
+                alert('✅ Evento actualizado!'); showEventDetail(upd.id); return;
+            }
+        }
+        const event={id:'local_'+Date.now(),clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,commissionPaid:false,notes:document.getElementById('eventNotes').value,status,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],createdAt:new Date().toISOString()};
+        appData.events.push(event); saveData(); saveEventToFirebase(event);
+        clearFormData(); alert('✅ Evento guardado!'); goToMainMenu();
+    }
+
+    function renderEvents() {
+        const c=document.getElementById('eventsList'); if(!c)return;
+        let evs=[...appData.events];
+        evs.sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
+        // Search filter
+        const q=(document.getElementById('eventSearch')||{}).value||'';
+        if(q.trim()){const ql=q.toLowerCase();evs=evs.filter(e=>(e.clientName||'').toLowerCase().includes(ql)||(e.venue||'').toLowerCase().includes(ql)||(e.plannerName||'').toLowerCase().includes(ql));}
+        if(currentFilter!=='all') evs=evs.filter(e=>e.status===currentFilter);
+        if(evs.length===0){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-medium);"><div style="font-size:3rem;margin-bottom:15px;">📭</div><p>No hay eventos'+(currentFilter!=='all'?' con este filtro':'')+'</p></div>';return;}
+        c.innerHTML=evs.map(ev=>{
+            const sb={pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status]||{c:'badge-pending',t:'Pendiente'};
+            const si=(ev.services||[]).map(s=>({pastel:'🎂',mesa_dulces:'🍬',postres:'🧁',quesos:'🧀',bebidas:'🥂',otro:'📦'}[s]||'📦')).join('');
+            const pc=(ev.photos||[]).length;
+            return `<div class="event-item" onclick="showEventDetail('${ev.id}')"><div class="event-icon">${si||'🎂'}</div><div class="event-details"><div class="event-name">${ev.clientName}${pc?' 📷':''}</div><div class="event-date">${formatDate(ev.eventDate)} • ${ev.venue||'Sin lugar'}</div></div><div class="event-amount"><div class="event-total">${formatCurrency(ev.totalPrice)}</div><div class="event-status"><span class="card-badge ${sb.c}">${sb.t}</span></div></div></div>`;
+        }).join('');
+    }
+
+    function filterEvents(f,btn) { currentFilter=f; document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active')); btn.classList.add('active'); renderEvents(); }
+
+    function showEventDetail(eventId) {
+        currentEventId=eventId;
+        const ev=appData.events.find(e=>e.id===eventId); if(!ev)return;
+        const c=document.getElementById('eventDetailContent');
+        const nm={pastel:'🎂 Pastel',mesa_dulces:'🍬 Mesa de Dulces',postres:'🧁 Postres',quesos:'🧀 Mesa de Quesos',bebidas:'🥂 Bebidas',otro:'📦 Otro'};
+        const svcH=(ev.services||[]).map(s=>`<div style="background:var(--primary-light);padding:8px 12px;border-radius:8px;margin:4px;">${nm[s]||s}${ev.serviceDetails&&ev.serviceDetails[s]?'<br><small style="color:var(--text-medium);">'+ev.serviceDetails[s]+'</small>':''}</div>`).join('');
+        const mi={'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
+        const payH=(ev.payments||[]).map(p=>`<div class="payment-history-item"><div><strong>${mi[p.method]||'💵'} ${formatCurrency(p.amount)}</strong><br><small style="color:var(--text-medium);">${formatDate(p.date)}${p.note?' - '+p.note:''}</small></div></div>`).join('');
+        const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+        const photoH=(ev.photos||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📷 Fotos</h3></div><div class="photo-scroll">${ev.photos.map((p,i)=>`<img src="${p}" class="photo-thumb" onclick="viewPhoto(${i},'detail')">`).join('')}</div></div>`:'';
+        const liH=(ev.lineItems||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📋 Cotización</h3></div><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:8px;color:var(--text-medium);font-weight:600;">Descripción</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Precio</th><th style="text-align:center;padding:8px;color:var(--text-medium);font-weight:600;">Qtd</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Total</th></tr>${ev.lineItems.map(li=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">${li.description||'-'}${li.note?'<br><small style="color:var(--text-medium);">'+li.note+'</small>':''}</td><td style="text-align:right;padding:8px;">${formatCurrency(li.unitPrice||0)}</td><td style="text-align:center;padding:8px;">${li.quantity||1}</td><td style="text-align:right;padding:8px;font-weight:600;">${formatCurrency((li.unitPrice||0)*(li.quantity||1))}</td></tr>`).join('')}<tr><td colspan="3" style="text-align:right;padding:10px 8px;font-weight:700;">TOTAL</td><td style="text-align:right;padding:10px 8px;font-weight:700;font-size:1.1rem;">${formatCurrency(ev.lineItems.reduce((s,li)=>s+(li.unitPrice||0)*(li.quantity||1),0))}</td></tr></table></div>`:'';
+
+        c.innerHTML=`
+            <div class="card"><div class="card-header"><h3 class="card-title">${ev.clientName}</h3><span class="card-badge ${ev.status==='paid'?'badge-paid':ev.status==='partial'?'badge-partial':'badge-pending'}">${ev.status==='paid'?'Pagado':ev.status==='partial'?'Parcial':'Pendiente'}</span></div>
+            <div class="payment-row"><span class="payment-label">📅 Fecha</span><span class="payment-value">${formatDate(ev.eventDate)}</span></div>
+            <div class="payment-row"><span class="payment-label">📍 Lugar</span><span class="payment-value">${ev.venue||'No especificado'}</span></div>
+            <div class="payment-row"><span class="payment-label">👥 Invitados</span><span class="payment-value">${ev.guestCount||'-'}</span></div>
+            <div class="payment-row"><span class="payment-label">📱 WhatsApp</span><span class="payment-value">${ev.clientPhone||'-'}</span></div></div>
+
+            <div class="card"><div class="card-header"><h3 class="card-title">🎂 Servicios</h3></div><div style="display:flex;flex-wrap:wrap;gap:5px;">${svcH||'<p style="color:var(--text-medium);">Sin servicios</p>'}</div></div>
+
+            ${liH}
+
+            <div class="card"><div class="card-header"><h3 class="card-title">💰 Pagos</h3></div>
+            <div class="amount-display"><div class="amount-label">Total del Evento</div><div class="amount-value">${formatCurrency(ev.totalPrice)}</div></div>
+            <div style="margin-top:12px;display:flex;gap:10px;">
+                <div style="flex:1;text-align:center;padding:12px;background:#e8f5e9;border-radius:10px;"><div style="font-size:0.8rem;color:var(--text-medium);">Pagado</div><div style="font-size:1.2rem;font-weight:700;color:var(--success);">${formatCurrency(totalPaid)}</div></div>
+                <div style="flex:1;text-align:center;padding:12px;background:${totalPaid>=ev.totalPrice?'#e8f5e9':'#fff8e6'};border-radius:10px;"><div style="font-size:0.8rem;color:var(--text-medium);">Restante</div><div style="font-size:1.2rem;font-weight:700;color:${totalPaid>=ev.totalPrice?'var(--success)':'var(--warning)'};">${formatCurrency(Math.max(0,ev.totalPrice-totalPaid))}</div></div>
+            </div>
+            ${totalPaid>0&&totalPaid<ev.totalPrice?`<div style="margin-top:10px;background:var(--border);border-radius:6px;height:8px;overflow:hidden;"><div style="height:100%;background:var(--success);border-radius:6px;width:${Math.min(100,Math.round(totalPaid/ev.totalPrice*100))}%;"></div></div><div style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:4px;">${Math.round(totalPaid/ev.totalPrice*100)}% cobrado</div>`:''}
+            ${(ev.payments||[]).length>0?'<div style="margin-top:15px;">'+payH+'</div>':'<p style="color:var(--text-light);text-align:center;padding:12px;">Sin pagos registrados</p>'}
+            ${ev.hasPlanner?`<div style="margin-top:15px;padding:15px;background:#fff8e6;border-radius:12px;border:1px solid #f0d78c;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:600;">🤝 Comisión ${ev.plannerName}</div><div style="font-size:0.85rem;color:var(--text-medium);">${ev.commissionRate}% = ${formatCurrency(ev.commission)}</div></div><div onclick="toggleCommissionPaid('${ev.id}')" style="cursor:pointer;font-size:1.5rem;">${ev.commissionPaid?'✅':'⬜'}</div></div></div>`:''}</div>
+
+            ${photoH}
+
+            ${ev.notes?`<div class="card"><div class="card-header"><h3 class="card-title">📝 Notas</h3></div><p style="color:var(--text-medium);">${ev.notes}</p></div>`:''}
+
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <button class="btn btn-primary" onclick="generatePDF('devis')" style="flex:1;padding:12px;">📄 Cotización PDF</button>
+                <button class="btn btn-success" onclick="generatePDF('nota')" style="flex:1;padding:12px;">🧾 Nota de Venta PDF</button>
+            </div>
+            <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="margin-bottom:10px;padding:10px;font-size:0.85rem;" id="loadTemplateBtn">🖼️ ${pdfTemplateImg?'✅ Cambiar':'Cargar'} Template PDF</button>
+            <button class="btn btn-secondary" onclick="saveAsTemplate('${ev.id}')" style="margin-bottom:10px;">📑 Guardar como Template</button>
+            ${ev.clientPhone?`<button class="btn btn-whatsapp" onclick="contactWhatsApp('${ev.clientPhone}','${ev.clientName}')">📱 Contactar por WhatsApp</button>`:''}
+            <button class="btn btn-primary" style="margin-top:10px;" onclick="editEvent('${ev.id}')">✏️ Modificar Evento</button>
+            <button class="btn btn-danger" style="margin-top:10px;" onclick="deleteEvent('${ev.id}')">🗑️ Eliminar Evento</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="showSection('events')">← Volver a Eventos</button>`;
+        showSection('eventDetail');
+    }
+
+    let _savingEvent = false;
+    function togglePayment(eid,type) {
+        if(_savingEvent)return; _savingEvent=true;
+        const ev=appData.events.find(e=>e.id===eid); if(!ev){_savingEvent=false;return;}
+        if(type==='deposit') ev.depositPaid=!ev.depositPaid; else ev.finalPaid=!ev.finalPaid;
+        if(ev.depositPaid&&ev.finalPaid) ev.status='paid'; else if(ev.depositPaid||ev.finalPaid) ev.status='partial'; else ev.status='pending';
+        saveData(); saveEventToFirebase(ev).then(()=>{_savingEvent=false;}); showEventDetail(eid);
+    }
+    function toggleCommissionPaid(eid) {
+        if(_savingEvent)return; _savingEvent=true;
+        const ev=appData.events.find(e=>e.id===eid);if(!ev){_savingEvent=false;return;}
+        ev.commissionPaid=!ev.commissionPaid;
+        saveData();saveEventToFirebase(ev).then(()=>{_savingEvent=false;});showEventDetail(eid);
+    }
+    function deleteEvent(eid) { if(confirm('¿Eliminar este evento?')){appData.events=appData.events.filter(e=>e.id!==eid);saveData();deleteEventFromFirebase(eid);showSection('events');} }
+    function editEvent(eid) {
+        const ev=appData.events.find(e=>e.id===eid);if(!ev)return;
+        editingEventId=eid;
+        document.getElementById('formTitle').textContent='✏️ Modificar Evento';
+        document.getElementById('clientName').value=ev.clientName||'';
+        document.getElementById('clientPhone').value=ev.clientPhone||'';
+        document.getElementById('eventDate').value=ev.eventDate||'';
+        document.getElementById('guestCount').value=ev.guestCount||'';
+        document.getElementById('totalPrice').value=ev.totalPrice||'';
+        document.getElementById('eventNotes').value=ev.notes||'';
+        const vs=document.getElementById('eventVenue');
+        const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda'];
+        if(kv.includes(ev.venue)){vs.value=ev.venue;document.getElementById('otherVenueGroup').style.display='none';}
+        else if(ev.venue){vs.value='Otro';document.getElementById('otherVenue').value=ev.venue;document.getElementById('otherVenueGroup').style.display='block';}
+        else{vs.value='';document.getElementById('otherVenueGroup').style.display='none';}
+        document.getElementById('hasPlanner').checked=ev.hasPlanner||false;
+        document.getElementById('plannerName').value=ev.plannerName||'';
+        document.getElementById('commissionRate').value=ev.commissionRate||10;
+        document.getElementById('plannerFields').style.display=ev.hasPlanner?'block':'none';
+        document.getElementById('commissionRow').style.display=ev.hasPlanner?'flex':'none';
+        selectedServices=ev.services||[];
+        document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',selectedServices.includes(c.dataset.service));});
+        updateServiceDetails();
+        if(ev.serviceDetails) Object.entries(ev.serviceDetails).forEach(([s,d])=>{const el=document.getElementById('service_'+s+'_details');if(el)el.value=d;});
+        currentPayments=[...(ev.payments||[])]; formPhotos=[...(ev.photos||[])]; lineItems=[...(ev.lineItems||[])];
+        calculatePayments(); renderFormPayments(); renderFormPhotos(); renderLineItems();
+        showSection('newEvent');
+    }
+
+    // ==================== EXPENSES ====================
+    function addExpense() {
+        const desc=document.getElementById('expenseDesc').value.trim();
+        const cat=document.getElementById('expenseCategory').value;
+        const amt=parseFloat(document.getElementById('expenseAmount').value)||0;
+        if(!desc||amt<=0){alert('Completa la descripción y el monto');return;}
+        const exp={id:'local_'+Date.now(),description:desc,category:cat,amount:amt,month:expenseMonth,year:expenseYear,createdAt:new Date().toISOString()};
+        appData.expenses.push(exp); saveData(); saveExpenseToFirebase(exp);
+        document.getElementById('expenseDesc').value=''; document.getElementById('expenseAmount').value='';
+        renderExpenses();
+    }
+    function renderExpenses() {
+        const c=document.getElementById('expensesList');if(!c)return;
+        const exps=appData.expenses.filter(e=>e.month===expenseMonth&&e.year===expenseYear);
+        const total=exps.reduce((s,e)=>s+e.amount,0);
+        const tb=document.getElementById('totalExpensesBadge');if(tb)tb.textContent=formatCurrency(total);
+        if(exps.length===0){c.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-medium);">Sin gastos este mes</div>';return;}
+        const ci={ingredientes:'🥚',transporte:'🚗',equipo:'🔧',marketing:'📣',otro:'📦'};
+        c.innerHTML=exps.map(e=>`<div class="expense-item"><div class="expense-info"><div class="expense-desc">${ci[e.category]||'📦'} ${e.description}</div></div><div class="expense-amount">${formatCurrency(e.amount)}</div><button class="delete-btn" onclick="deleteExpense('${e.id}')">×</button></div>`).join('');
+    }
+    function deleteExpense(eid) { appData.expenses=appData.expenses.filter(e=>e.id!==eid);saveData();deleteExpenseFromFirebase(eid);renderExpenses(); }
+    function changeExpenseMonth(d) { expenseMonth+=d;if(expenseMonth>11){expenseMonth=0;expenseYear++;}else if(expenseMonth<0){expenseMonth=11;expenseYear--;}updateExpenseMonthDisplay();renderExpenses(); }
+    function updateExpenseMonthDisplay() { const m=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];document.getElementById('expenseMonthDisplay').textContent=m[expenseMonth]+' '+expenseYear; }
+
+    // ==================== DASHBOARD ====================
+    function changeMonth(d) { currentMonth+=d;if(currentMonth>11){currentMonth=0;currentYear++;}else if(currentMonth<0){currentMonth=11;currentYear--;}updateMonthDisplay();updateDashboard();setTimeout(renderChart,200); }
+    function updateMonthDisplay() { const m=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];document.getElementById('monthDisplay').textContent=m[currentMonth]+' '+currentYear; }
+
+    function updateDashboard() {
+        const mEvs=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===currentMonth&&d.getFullYear()===currentYear;});
+        const mExps=appData.expenses.filter(e=>e.month===currentMonth&&e.year===currentYear);
+        const totalRev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
+        const totalExp=mExps.reduce((s,e)=>s+e.amount,0);
+        const netInc=totalRev-totalExp;
+        let rr=1;if(totalRev>50000)rr=2;else if(totalRev>25000)rr=1.5;
+        const tax=totalRev*(rr/100);
+        const netP=netInc-tax;
+        document.getElementById('dashEventCount').textContent=mEvs.length;
+        document.getElementById('dashRevenue').textContent=formatCurrency(totalRev);
+        document.getElementById('dashExpenses').textContent=formatCurrency(totalExp);
+        document.getElementById('dashNet').textContent=formatCurrency(netInc);
+        document.getElementById('dashResicoBase').textContent=formatCurrency(totalRev);
+        document.getElementById('dashResicoRate').textContent=rr+'%';
+        document.getElementById('dashResicoTax').textContent=formatCurrency(tax);
+        document.getElementById('dashNetProfit').textContent=formatCurrency(netP);
+
+        // Extra stats
+        const avgVal=mEvs.length>0?totalRev/mEvs.length:0;
+        const paidCount=mEvs.filter(e=>e.status==='paid').length;
+        const compRate=mEvs.length>0?Math.round(paidCount/mEvs.length*100):0;
+        // Best month this year
+        let bestM='',bestV=0;
+        for(let i=0;i<12;i++){const mv=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===currentYear;}).reduce((s,e)=>s+(e.totalPrice||0),0);if(mv>bestV){bestV=mv;bestM=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][i];}}
+        const es=document.getElementById('dashExtraStats');
+        es.innerHTML=`<div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value">${formatCurrency(avgVal)}</div><div class="stat-label">Promedio/Evento</div></div><div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value">${compRate}%</div><div class="stat-label">Cobrado</div></div><div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-value">${bestM||'-'}</div><div class="stat-label">Mejor Mes</div></div><div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value">${formatCurrency(bestV)}</div><div class="stat-label">Mejor Ingreso</div></div>`;
+
+        // Commission summary
+        const pg={};
+        mEvs.forEach(e=>{if(e.hasPlanner&&e.commission>0){const nn=(e.plannerName||'Sin nombre').trim().toLowerCase();const dn=e.plannerName||'Sin nombre';if(!pg[nn])pg[nn]={displayName:dn,events:[]};pg[nn].events.push({eventId:e.id,clientName:e.clientName,commission:e.commission,commissionPaid:e.commissionPaid||false});}});
+        const cc=document.getElementById('commissionSummary');
+        if(Object.keys(pg).length===0){cc.innerHTML='<p style="color:var(--text-medium);text-align:center;">Sin comisiones este mes</p>';}
+        else{
+            let tc=0,pc2=0,h='';
+            Object.values(pg).forEach(g=>{const gt=g.events.reduce((s,e)=>s+e.commission,0);const gp=g.events.filter(e=>e.commissionPaid).reduce((s,e)=>s+e.commission,0);const ap=g.events.every(e=>e.commissionPaid);tc+=gt;pc2+=gp;
+            h+=`<div style="background:${ap?'#e8f5e9':'#fff8e6'};padding:12px;border-radius:10px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;">🤝 ${g.displayName}</span><span style="font-weight:700;color:${ap?'var(--success)':'var(--warning)'};">${formatCurrency(gt)}</span></div>${g.events.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid rgba(0,0,0,0.1);"><span style="font-size:0.85rem;color:var(--text-medium);">${e.clientName}</span><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.85rem;">${formatCurrency(e.commission)}</span><span onclick="toggleCommissionPaidFromDashboard('${e.eventId}')" style="cursor:pointer;font-size:1.2rem;">${e.commissionPaid?'✅':'⬜'}</span></div></div>`).join('')}</div>`;});
+            const pend=tc-pc2;
+            h+=`<div style="border-top:2px solid var(--border);margin-top:10px;padding-top:15px;"><div class="payment-row"><span class="payment-label" style="font-weight:700;">Total Comisiones</span><span class="payment-value" style="font-weight:700;">${formatCurrency(tc)}</span></div><div class="payment-row"><span class="payment-label" style="color:var(--success);">✅ Pagado</span><span class="payment-value" style="color:var(--success);">${formatCurrency(pc2)}</span></div><div class="payment-row"><span class="payment-label" style="color:var(--warning);">⬜ Pendiente</span><span class="payment-value" style="color:var(--warning);">${formatCurrency(pend)}</span></div></div>`;
+            cc.innerHTML=h;
+        }
+    }
+    function toggleCommissionPaidFromDashboard(eid) {
+        if(_savingEvent)return; _savingEvent=true;
+        const ev=appData.events.find(e=>e.id===eid);if(!ev){_savingEvent=false;return;}
+        ev.commissionPaid=!ev.commissionPaid;
+        saveData();saveEventToFirebase(ev).then(()=>{_savingEvent=false;});updateDashboard();
+    }
+
+    // ==================== CHART ====================
+    function renderChart() {
+        const canvas=document.getElementById('revenueChart');if(!canvas)return;
+        if(revenueChart){revenueChart.destroy();revenueChart=null;}
+        const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const data=[],prevData=[];
+        for(let i=0;i<12;i++){
+            data.push(appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===currentYear;}).reduce((s,e)=>s+(e.totalPrice||0),0));
+            prevData.push(appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===currentYear-1;}).reduce((s,e)=>s+(e.totalPrice||0),0));
+        }
+        revenueChart=new Chart(canvas,{type:'bar',data:{labels:ms,datasets:[{label:currentYear+'',data:data,backgroundColor:'rgba(212,165,116,0.7)',borderColor:'#d4a574',borderWidth:2,borderRadius:6},{label:(currentYear-1)+'',data:prevData,backgroundColor:'rgba(139,115,85,0.3)',borderColor:'#8b7355',borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{family:'Nunito'}}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()}},x:{ticks:{font:{family:'Nunito'}}}}}});
+    }
+
+    // ==================== NOTIFICATIONS ====================
+    function computeNotifications() {
+        const dismissed=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');
+        const now=new Date();now.setHours(0,0,0,0);
+        notifications=[];
+        appData.events.forEach(ev=>{
+            if(!ev.eventDate)return;
+            const ed=new Date(ev.eventDate+'T12:00:00');
+            const diff=Math.ceil((ed-now)/86400000);
+            // Upcoming in 3 days
+            if(diff>=0&&diff<=3){const id='upcoming_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'urgent',icon:'📅',title:diff===0?'HOY: '+ev.clientName:diff===1?'MAÑANA: '+ev.clientName:'En '+diff+' días: '+ev.clientName,sub:ev.venue||'',eventId:ev.id});}
+            // Overdue payment
+            if(diff<0&&ev.status!=='paid'){const id='overdue_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'warning',icon:'💰',title:'Pago pendiente: '+ev.clientName,sub:formatCurrency(ev.totalPrice),eventId:ev.id});}
+        });
+        // Update badge
+        const badge=document.getElementById('notifBadge');
+        if(badge){if(notifications.length>0){badge.style.display='flex';badge.textContent=notifications.length;}else{badge.style.display='none';}}
+    }
+    function toggleNotifications() {
+        const m=document.getElementById('notifModal');
+        if(m.style.display==='none'){
+            m.style.display='block';
+            const c=document.getElementById('notifList');
+            if(notifications.length===0){c.innerHTML='<p style="text-align:center;color:var(--text-medium);padding:20px;">Sin notificaciones 🎉</p>';}
+            else{c.innerHTML=notifications.map(n=>`<div class="notif-item notif-${n.type}" onclick="tapNotif('${n.eventId}','${n.id}')"><span style="font-size:1.5rem;">${n.icon}</span><div style="flex:1;"><div style="font-weight:600;">${n.title}</div><div style="font-size:0.85rem;color:var(--text-medium);">${n.sub}</div></div><span onclick="event.stopPropagation();dismissNotif('${n.id}')" style="font-size:1.2rem;padding:4px;">✕</span></div>`).join('');}
+        } else { m.style.display='none'; }
+    }
+    function dismissNotif(id) { const d=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');d.push(id);localStorage.setItem('lpp_dismissed_notifs',JSON.stringify(d));computeNotifications();toggleNotifications();toggleNotifications(); }
+    function tapNotif(eid,nid) { dismissNotif(nid); document.getElementById('notifModal').style.display='none'; showEventDetail(eid); }
+
+    // ==================== TEMPLATES ====================
+    function saveAsTemplate(eid) {
+        const ev=appData.events.find(e=>e.id===eid);if(!ev)return;
+        const name=prompt('Nombre del template:',ev.clientName+' - Template');if(!name)return;
+        appTemplates.push({id:'tpl_'+Date.now(),name,services:ev.services||[],serviceDetails:ev.serviceDetails||{},totalPrice:ev.totalPrice,hasPlanner:ev.hasPlanner,plannerName:ev.plannerName,commissionRate:ev.commissionRate,venue:ev.venue,guestCount:ev.guestCount,notes:ev.notes,lineItems:ev.lineItems||[]});
+        localStorage.setItem('lpp_templates',JSON.stringify(appTemplates));
+        alert('✅ Template guardado!');
+    }
+    function applyTemplate(tid) {
+        const t=appTemplates.find(x=>x.id===tid);if(!t)return;
+        clearFormData();
+        if(t.totalPrice) document.getElementById('totalPrice').value=t.totalPrice;
+        if(t.venue){const vs=document.getElementById('eventVenue');const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda'];if(kv.includes(t.venue))vs.value=t.venue;else{vs.value='Otro';document.getElementById('otherVenue').value=t.venue;document.getElementById('otherVenueGroup').style.display='block';}}
+        if(t.guestCount) document.getElementById('guestCount').value=t.guestCount;
+        if(t.hasPlanner){document.getElementById('hasPlanner').checked=true;document.getElementById('plannerName').value=t.plannerName||'';document.getElementById('commissionRate').value=t.commissionRate||10;togglePlannerFields();}
+        if(t.notes) document.getElementById('eventNotes').value=t.notes;
+        selectedServices=t.services||[];
+        document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',selectedServices.includes(c.dataset.service));});
+        updateServiceDetails();
+        if(t.serviceDetails) Object.entries(t.serviceDetails).forEach(([s,d])=>{const el=document.getElementById('service_'+s+'_details');if(el)el.value=d;});
+        lineItems=[...(t.lineItems||[])]; renderLineItems();
+        calculatePayments();
+        closeTemplatePicker();
+        showSection('newEvent');
+    }
+    function deleteTemplate(tid) { if(!confirm('¿Eliminar template?'))return;appTemplates=appTemplates.filter(t=>t.id!==tid);localStorage.setItem('lpp_templates',JSON.stringify(appTemplates));renderTemplates(); }
+    function renderTemplates() {
+        const c=document.getElementById('templatesList');if(!c)return;
+        const nt=document.getElementById('noTemplates');
+        if(appTemplates.length===0){c.innerHTML='';if(nt)nt.style.display='block';return;}
+        if(nt)nt.style.display='none';
+        c.innerHTML=appTemplates.map(t=>`<div class="template-item"><div style="flex:1;"><div style="font-weight:600;">${t.name}</div><div style="font-size:0.85rem;color:var(--text-medium);">${(t.services||[]).join(', ')} • ${formatCurrency(t.totalPrice||0)}</div></div><button class="delete-btn" onclick="deleteTemplate('${t.id}')" style="width:28px;height:28px;font-size:0.9rem;">×</button></div>`).join('');
+    }
+    function showTemplatePicker() {
+        if(appTemplates.length===0){alert('Sin templates. Guarda uno desde el detalle de un evento.');return;}
+        const c=document.getElementById('templatePickerList');
+        c.innerHTML=appTemplates.map(t=>`<div class="template-item" onclick="applyTemplate('${t.id}')"><span style="font-size:1.5rem;">📑</span><div style="flex:1;"><div style="font-weight:600;">${t.name}</div><div style="font-size:0.85rem;color:var(--text-medium);">${formatCurrency(t.totalPrice||0)}</div></div></div>`).join('');
+        document.getElementById('templateModal').style.display='block';
+    }
+    function closeTemplatePicker() { document.getElementById('templateModal').style.display='none'; }
+
+    // ==================== PDF TEMPLATE IMAGE ====================
+    let pdfTemplateImg = localStorage.getItem('lpp_pdf_template') || null;
+
+    function loadPdfTemplate() {
+        const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+        inp.onchange=function(){
+            if(!inp.files[0]) return;
+            const reader=new FileReader();
+            reader.onload=function(e){
+                pdfTemplateImg=e.target.result;
+                localStorage.setItem('lpp_pdf_template', pdfTemplateImg);
+                // Update UI
+                const ts=document.getElementById('templateStatus');
+                const mb=document.getElementById('mainTemplateBtn');
+                if(ts) ts.textContent='✅ Template cargado';
+                if(mb) mb.innerHTML='🖼️ ✅ Template PDF cargado (cambiar)';
+                alert('✅ Template de cotización cargado! Se usará para todos los PDFs.');
+            };
+            reader.readAsDataURL(inp.files[0]);
+        };
+        inp.click();
+    }
+
+    // ==================== PDF GENERATION ====================
+    function generatePDF(type) {
+        const ev=appData.events.find(e=>e.id===currentEventId);if(!ev)return;
+        if(!pdfTemplateImg){alert('Primero carga tu imagen de template: ve a Configuración o usa el botón "📄 Cargar Template PDF"');return;}
+        const {jsPDF}=window.jspdf;
+        const doc=new jsPDF({unit:'mm',format:'a4'});
+        const pw=210, ph=297;
+        const brown=[100,75,55];
+        const brownLight=[140,115,95];
+        const brownDark=[70,50,35];
+
+        // Background: blank template image (logo + feuilles, no text)
+        doc.addImage(pdfTemplateImg,'JPEG',0,0,pw,ph);
+
+        // Template measurements (Image-1.jpg = 1415x2000px → A4 210x297mm)
+        // 1st pink line: y≈607px → 90mm. 2nd pink line: y≈1456px → 216mm
+        // White zone left edge: x≈75px → 11mm. Right edge: x≈1340px → 199mm
+        // Usable zone: y=95mm to y=212mm (with 5mm margins from lines)
+        // Horizontal center: 105mm. Left margin: 18mm. Right margin: 195mm
+
+        const LM=18, RM=195, CX=105; // left margin, right margin, center x
+        const TOP=96; // start text 6mm below first pink line
+
+        // ====== CLIENT INFO ======
+        let y=TOP;
+        doc.setFontSize(12); doc.setTextColor(...brownDark);
+        doc.text(ev.clientName.toUpperCase(),LM,y);
+        y+=6;
+        const snm={pastel:'Pastel',mesa_dulces:'Mesa de Dulces',postres:'Postres',quesos:'Mesa de Quesos',bebidas:'Bebidas',otro:'Otro'};
+        const svcNames=(ev.services||[]).map(s=>snm[s]||s).join(' + ');
+        doc.setFontSize(9); doc.setTextColor(...brown);
+        if(svcNames){doc.text(svcNames,LM,y);y+=5;}
+        if(ev.hasPlanner&&ev.plannerName){doc.text('WP: '+ev.plannerName,LM,y);y+=5;}
+
+        // Date + venue - right aligned
+        doc.setFontSize(9); doc.setTextColor(...brownLight);
+        doc.text('Fecha evento : '+ev.eventDate.split('-').reverse().join('.'),RM,TOP,{align:'right'});
+        if(ev.venue) doc.text(ev.venue,RM,TOP+6,{align:'right'});
+        if(ev.guestCount) doc.text(ev.guestCount+' invitados',RM,TOP+12,{align:'right'});
+
+        // Separator
+        y=Math.max(y+4,114);
+        doc.setDrawColor(210,185,175); doc.setLineWidth(0.3); doc.line(LM,y,RM,y);
+
+        // ====== TABLE HEADER ======
+        y+=7;
+        doc.setFontSize(10); doc.setTextColor(...brownDark);
+        doc.text('DESCRIPCION',LM+2,y);
+        doc.text('PRECIO',108,y,{align:'center'});
+        doc.text('QTD',140,y,{align:'center'});
+        doc.text('PRECIO',178,y,{align:'center'});
+
+        // ====== TABLE ROWS ======
+        y+=8; doc.setFontSize(9); doc.setTextColor(...brown);
+        const items=(ev.lineItems||[]).length>0 ? ev.lineItems : [{description:'Servicio completo',unitPrice:ev.totalPrice,quantity:1,note:''}];
+        items.forEach(li=>{
+            const sub=(li.unitPrice||0)*(li.quantity||1);
+            const priceStr=(li.unitPrice===0||li.unitPrice===undefined)?'incluido':formatCurrency(li.unitPrice);
+            const subStr=sub===0?'incluido':formatCurrency(sub);
+
+            const descLines=doc.splitTextToSize(li.description||'-',75);
+            doc.setTextColor(...brown);
+            doc.text(descLines,LM+2,y);
+            doc.text(priceStr,108,y,{align:'center'});
+            doc.text(String(li.quantity||1),140,y,{align:'center'});
+            doc.text(subStr,178,y,{align:'center'});
+            y+=descLines.length*4.5;
+            if(li.note){
+                doc.setFontSize(8); doc.setTextColor(...brownLight);
+                const noteLines=doc.splitTextToSize(li.note,75);
+                doc.text(noteLines,LM+2,y);
+                y+=noteLines.length*3.5;
+                doc.setFontSize(9); doc.setTextColor(...brown);
+            }
+            y+=5;
+        });
+
+        // ====== TOTAL LINE (must stay above 2nd pink line at 216mm) ======
+        // Separator before total
+        doc.setDrawColor(180,130,120); doc.setLineWidth(0.5); doc.line(LM,y,RM,y);
+        y+=7;
+        doc.setFontSize(12); doc.setTextColor(...brownDark);
+        doc.text('TOTAL',CX+15,y,{align:'center'});
+        doc.text(formatCurrency(ev.totalPrice),178,y,{align:'center'});
+
+        // Payment info (below total, still above 2nd line)
+        const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+        if(type==='devis' && totalPaid>0){
+            y+=7; doc.setFontSize(8); doc.setTextColor(...brownLight);
+            doc.text('Pagado: '+formatCurrency(totalPaid)+' | Restante: '+formatCurrency(ev.totalPrice-totalPaid),CX,y,{align:'center'});
+        } else if(type==='devis'){
+            y+=7; doc.setFontSize(8); doc.setTextColor(...brownLight);
+            doc.text('Anticipo 50%: '+formatCurrency(ev.totalPrice/2)+' | Liquidacion 50%: '+formatCurrency(ev.totalPrice/2),CX,y,{align:'center'});
+        }
+        if(type==='nota'&&(ev.payments||[]).length>0){
+            y+=8; doc.setFontSize(8); doc.setTextColor(...brown);
+            const mi={'efectivo':'Efectivo','transferencia':'Transferencia','tarjeta':'Tarjeta'};
+            ev.payments.forEach(p=>{
+                doc.text(formatDate(p.date)+' - '+(mi[p.method]||p.method),LM+4,y);
+                doc.text(formatCurrency(p.amount),178,y,{align:'center'});
+                y+=4.5;
+            });
+            y+=2; doc.setFontSize(9); doc.setTextColor(...brownDark);
+            doc.text('Total pagado: '+formatCurrency(totalPaid)+' | Restante: '+formatCurrency(ev.totalPrice-totalPaid),CX,y,{align:'center'});
+        }
+
+        // ====== "Merci !" in footer zone (between 2nd line ~216mm and bottom leaves ~234mm) ======
+        doc.setFontSize(26); doc.setTextColor(...brownDark);
+        doc.text('Merci !',CX,232,{align:'center'});
+
+        doc.save((type==='devis'?'Cotizacion':'NotaDeVenta')+'_'+ev.clientName.replace(/\s/g,'_')+'.pdf');
+    }
+
+    // ==================== UTILITIES ====================
+    function formatDate(ds) { if(!ds)return''; const d=new Date(ds); return d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }
+    function contactWhatsApp(phone,name) { const cp=phone.replace(/\D/g,'');const msg=encodeURIComponent('Hola '+name+', te escribo de La Petite Parisienne 🥐');window.open('https://wa.me/'+cp+'?text='+msg,'_blank'); }
+    function sendMonthlyReport() {
+        const ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const mEvs=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===currentMonth&&d.getFullYear()===currentYear;});
+        const mExps=appData.expenses.filter(e=>e.month===currentMonth&&e.year===currentYear);
+        const rev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
+        const exp=mExps.reduce((s,e)=>s+e.amount,0);
+        const r=`🥐 *Reporte La Petite Parisienne*\n📅 ${ms[currentMonth]} ${currentYear}\n\n📋 Eventos: ${mEvs.length}\n💰 Ingresos: ${formatCurrency(rev)}\n💸 Gastos: ${formatCurrency(exp)}\n✅ Neto: ${formatCurrency(rev-exp)}`;
+        window.open('https://wa.me/?text='+encodeURIComponent(r),'_blank');
+    }
+    function updateQuickStats() {
+        const now=new Date();
+        const mEvs=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+        const mExps=appData.expenses.filter(e=>e.month===now.getMonth()&&e.year===now.getFullYear());
+        const rev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
+        const exp=mExps.reduce((s,e)=>s+e.amount,0);
+        const qec=document.getElementById('quickEventCount');if(qec)qec.textContent=mEvs.length;
+        const qr=document.getElementById('quickRevenue');if(qr)qr.textContent=formatCurrency(rev);
+        const qe=document.getElementById('quickExpenses');if(qe)qe.textContent=formatCurrency(exp);
+        const qn=document.getElementById('quickNet');if(qn)qn.textContent=formatCurrency(rev-exp);
+    }
+    </script>
+</body>
+</html>

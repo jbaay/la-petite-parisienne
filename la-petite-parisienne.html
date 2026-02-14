@@ -498,6 +498,14 @@
             </div>
             <div class="card">
                 <div class="card-header"><h3 class="card-title">📋 Líneas de Cotización</h3><button class="pay-method-btn active" onclick="addLineItem()" style="font-size:0.85rem;">➕ Agregar</button></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+                    <button class="pay-method-btn" onclick="addQuickLine('🚗 Transporte montaje y desmontaje','',1)" style="font-size:0.8rem;">🚗 Transporte</button>
+                    <button class="pay-method-btn" onclick="addQuickLine('🏗️ Montaje y desmontaje','',1)" style="font-size:0.8rem;">🏗️ Montaje</button>
+                    <button class="pay-method-btn" onclick="addQuickLine('🌸 Decoración de flores','',1)" style="font-size:0.8rem;">🌸 Flores</button>
+                    <button class="pay-method-btn" onclick="addQuickLine('🛋️ Renta de mobiliario','',1)" style="font-size:0.8rem;">🛋️ Mobiliario</button>
+                    <button class="pay-method-btn" onclick="addQuickLine('👩‍🍳 Personal de servicio','',1)" style="font-size:0.8rem;">👩‍🍳 Personal</button>
+                    <button class="pay-method-btn" onclick="addQuickLine('🎂 Pastel','',1)" style="font-size:0.8rem;">🎂 Pastel</button>
+                </div>
                 <div id="lineItemsList"></div>
                 <div style="text-align:right;font-weight:700;padding-top:10px;border-top:2px solid var(--border);margin-top:8px;font-size:1.1rem;">Total: <span id="lineItemsTotal">$0</span></div>
             </div>
@@ -535,12 +543,11 @@
                     <button class="btn btn-success" onclick="addPaymentToForm()" style="padding:12px;width:100%;font-size:1rem;">➕ Registrar Pago</button>
                 </div>
             </div>
-            <div class="card resico-card">
+            <div class="card resico-card" id="resicoCard" style="display:none;">
                 <div class="resico-header"><span class="resico-badge">RESICO</span><h3 class="resico-title">Resumen Financiero</h3></div>
-                <div class="info-box"><span class="info-box-icon">ℹ️</span> ISR RESICO mensual: 1% (hasta $25,000) | 1.5% ($25,001-$50,000) | 2% (más de $50,000). Se calcula en el Dashboard.</div>
                 <div class="resico-info">
                     <div class="resico-item"><div class="resico-item-label">Total Evento</div><div class="resico-item-value" id="resicoGross">$0</div></div>
-                    <div class="resico-item"><div class="resico-item-label">Comisión Planner</div><div class="resico-item-value" id="resicoCommission" style="color:var(--warning);">$0</div></div>
+                    <div class="resico-item" id="resicoCommissionItem" style="display:none;"><div class="resico-item-label">Comisión Planner</div><div class="resico-item-value" id="resicoCommission" style="color:var(--warning);">$0</div></div>
                     <div class="resico-item"><div class="resico-item-label">Tú Recibes</div><div class="resico-item-value net" id="resicoNet">$0</div></div>
                 </div>
             </div>
@@ -1098,9 +1105,15 @@
         const commission=hp?tp*(cr/100):0;
         document.getElementById('netAmount').textContent=formatCurrency(tp);
         document.getElementById('commissionAmount').textContent=formatCurrency(commission);
+        // RESICO card: show only when there's a price
+        const resicoCard=document.getElementById('resicoCard');
+        if(resicoCard) resicoCard.style.display=tp>0?'block':'none';
         document.getElementById('resicoGross').textContent=formatCurrency(tp);
+        // Show/hide commission in RESICO
+        const resicoCommItem=document.getElementById('resicoCommissionItem');
+        if(resicoCommItem) resicoCommItem.style.display=hp?'block':'none';
         document.getElementById('resicoCommission').textContent=formatCurrency(commission);
-        document.getElementById('resicoNet').textContent=formatCurrency(tp);
+        document.getElementById('resicoNet').textContent=formatCurrency(tp-commission);
         // Payment summary
         const paid=currentPayments.reduce((s,p)=>s+(p.amount||0),0);
         const el1=document.getElementById('totalPaidDisplay'); if(el1) el1.textContent=formatCurrency(paid);
@@ -1291,6 +1304,11 @@
     function addLineItem() {
         lineItems.push({description:'',unitPrice:0,quantity:1,note:''});
         renderLineItems();
+    }
+    function addQuickLine(desc,note,qty) {
+        lineItems.push({description:desc,unitPrice:0,quantity:qty||1,note:note||''});
+        renderLineItems();
+        showToast(desc+' ajouté','info',1500);
     }
     function removeLineItem(i) { lineItems.splice(i,1); recalcLineItems(); renderLineItems(); }
     function updateLineItem(i,field,val) {

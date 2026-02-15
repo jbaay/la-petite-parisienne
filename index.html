@@ -1780,18 +1780,18 @@
         // ====== CLIENT INFO ======
         let y=TOP;
         doc.setFontSize(12); doc.setTextColor(...brownDark);
-        doc.text(ev.clientName.toUpperCase(),LM,y);
+        doc.text(stripEmojis(ev.clientName).toUpperCase(),LM,y);
         y+=6;
         const snm={pastel:'Pastel',mesa_dulces:'Mesa de Dulces',postres:'Postres',quesos:'Mesa de Quesos',bebidas:'Bebidas',otro:'Otro'};
         const svcNames=(ev.services||[]).map(s=>snm[s]||s).join(' + ');
         doc.setFontSize(9); doc.setTextColor(...brown);
         if(svcNames){doc.text(svcNames,LM,y);y+=5;}
-        if(ev.hasPlanner&&ev.plannerName){doc.text('WP: '+ev.plannerName,LM,y);y+=5;}
+        if(ev.hasPlanner&&ev.plannerName){doc.text('WP: '+stripEmojis(ev.plannerName),LM,y);y+=5;}
 
         // Date + venue - right aligned
         doc.setFontSize(9); doc.setTextColor(...brownLight);
         doc.text('Fecha evento : '+ev.eventDate.split('-').reverse().join('.'),RM,TOP,{align:'right'});
-        if(ev.venue) doc.text(ev.venue,RM,TOP+6,{align:'right'});
+        if(ev.venue) doc.text(stripEmojis(ev.venue),RM,TOP+6,{align:'right'});
         if(ev.guestCount) doc.text(ev.guestCount+' invitados',RM,TOP+12,{align:'right'});
 
         // Separator
@@ -1814,7 +1814,7 @@
             const priceStr=(li.unitPrice===0||li.unitPrice===undefined)?'incluido':formatCurrency(li.unitPrice);
             const subStr=sub===0?'incluido':formatCurrency(sub);
 
-            const descLines=doc.splitTextToSize(li.description||'-',75);
+            const descLines=doc.splitTextToSize(stripEmojis(li.description||'-'),75);
             doc.setTextColor(...brown);
             doc.text(descLines,LM+2,y);
             doc.text(priceStr,108,y,{align:'center'});
@@ -1823,7 +1823,7 @@
             y+=descLines.length*4.5;
             if(li.note){
                 doc.setFontSize(8); doc.setTextColor(...brownLight);
-                const noteLines=doc.splitTextToSize(li.note,75);
+                const noteLines=doc.splitTextToSize(stripEmojis(li.note),75);
                 doc.text(noteLines,LM+2,y);
                 y+=noteLines.length*3.5;
                 doc.setFontSize(9); doc.setTextColor(...brown);
@@ -1868,6 +1868,7 @@
     }
 
     // ==================== UTILITIES ====================
+    function stripEmojis(str) { if(!str)return''; return str.replace(/[\u{1F600}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1FFFF}]|[\u{FE00}-\u{FEFF}]|[\u{1FA00}-\u{1FAFF}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}]/gu, '').replace(/\s+/g,' ').trim(); }
     function formatDate(ds) { if(!ds)return''; const d=new Date(ds); return d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }
     function contactWhatsApp(phone,name) { const cp=phone.replace(/\D/g,'');const msg=encodeURIComponent('Hola '+name+', te escribo de La Petite Parisienne 🥐');window.open('https://wa.me/'+cp+'?text='+msg,'_blank'); }
     function sendMonthlyReport() {

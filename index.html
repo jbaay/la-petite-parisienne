@@ -1075,12 +1075,35 @@
     }
 
     // ==================== SERVICES ====================
-    function toggleService(el) { const s=el.dataset.service; el.classList.toggle('selected'); if(el.classList.contains('selected')){if(!selectedServices.includes(s))selectedServices.push(s);}else{selectedServices=selectedServices.filter(x=>x!==s);} updateServiceDetails(); }
+    const SERVICE_NAMES={pastel:'🎂 Pastel',mesa_dulces:'🍬 Mesa de Dulces',postres:'🧁 Postres',quesos:'🧀 Mesa de Quesos',bebidas:'🥂 Bebidas',otro:'📦 Otro'};
+
+    function toggleService(el) {
+        const s=el.dataset.service;
+        el.classList.toggle('selected');
+        if(el.classList.contains('selected')){
+            if(!selectedServices.includes(s)) selectedServices.push(s);
+            addServiceLine(s);
+        } else {
+            selectedServices=selectedServices.filter(x=>x!==s);
+            removeServiceLine(s);
+        }
+        updateServiceDetails();
+    }
+    function addServiceLine(key) {
+        // Don't add if already exists (edit mode)
+        if(lineItems.some(li=>li.serviceKey===key)) return;
+        lineItems.push({description:SERVICE_NAMES[key]||key,unitPrice:0,quantity:1,note:'',serviceKey:key});
+        renderLineItems();
+    }
+    function removeServiceLine(key) {
+        lineItems=lineItems.filter(li=>li.serviceKey!==key);
+        renderLineItems();
+        recalcLineItems();
+    }
     function updateServiceDetails() {
         const c=document.getElementById('serviceDetails'); if(selectedServices.length===0){c.innerHTML='';return;}
-        const nm={pastel:'🎂 Pastel',mesa_dulces:'🍬 Mesa de Dulces',postres:'🧁 Postres',quesos:'🧀 Mesa de Quesos',bebidas:'🥂 Bebidas',otro:'📦 Otro'};
         let h='<div style="margin-top:15px;">';
-        selectedServices.forEach(s=>{ h+=`<div class="form-group"><label class="form-label">${nm[s]} - Detalles</label><input type="text" class="form-input" id="service_${s}_details" placeholder="Descripción específica..." value="${formData.newEvent['service_'+s+'_details']||''}"></div>`; });
+        selectedServices.forEach(s=>{ h+=`<div class="form-group"><label class="form-label">${SERVICE_NAMES[s]} - Detalles</label><input type="text" class="form-input" id="service_${s}_details" placeholder="Descripción específica..." value="${formData.newEvent['service_'+s+'_details']||''}"></div>`; });
         h+='</div>'; c.innerHTML=h;
     }
     function showServiceForm(st) {
@@ -1089,7 +1112,7 @@
         document.getElementById('serviceFormContent').innerHTML=`<div class="card"><div class="card-header"><h3 class="card-title">${s.icon} ${s.name}</h3></div><p style="color:var(--text-medium);margin-bottom:20px;">¿Quieres crear un nuevo evento con este servicio?</p><button class="btn btn-primary" onclick="startEventWithService('${st}')">✨ Crear Evento con ${s.name}</button><button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button></div>`;
         showSection('serviceForm');
     }
-    function startEventWithService(st) { selectedServices=[st]; formData.newEvent={selectedServices:[st]}; showSection('newEvent'); document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',c.dataset.service===st);}); updateServiceDetails(); }
+    function startEventWithService(st) { selectedServices=[st]; formData.newEvent={selectedServices:[st]}; showSection('newEvent'); document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',c.dataset.service===st);}); addServiceLine(st); updateServiceDetails(); }
 
     // ==================== PAYMENTS & CALCULATIONS ====================
     function togglePlannerFields() {
@@ -1328,10 +1351,11 @@
     }
     function renderLineItems() {
         const c=document.getElementById('lineItemsList'); if(!c) return;
-        if(lineItems.length===0){c.innerHTML='<p style="color:var(--text-light);text-align:center;padding:12px;">Sin líneas — agrega una descripción con precio y cantidad</p>';document.getElementById('lineItemsTotal').textContent='$0';return;}
+        if(lineItems.length===0){c.innerHTML='<p style="color:var(--text-light);text-align:center;padding:12px;">Sin líneas — selecciona un servicio o agrega manualmente</p>';document.getElementById('lineItemsTotal').textContent='$0';return;}
         c.innerHTML=lineItems.map((li,i)=>{
             const sub=(li.unitPrice||0)*(li.quantity||1);
-            return `<div class="line-item" draggable="true" data-idx="${i}" ondragstart="onLineDragStart(event,${i})" ondragover="onLineDragOver(event)" ondragenter="onLineDragEnter(event)" ondragleave="onLineDragLeave(event)" ondrop="onLineDrop(event,${i})" ondragend="onLineDragEnd(event)"><div class="line-item-row"><span class="drag-handle">⠿</span><input type="text" class="form-input line-item-desc" placeholder="Descripción" value="${esc(li.description||'')}" onchange="updateLineItem(${i},'description',this.value)"><input type="number" class="form-input line-item-price" placeholder="Precio" value="${li.unitPrice||''}" oninput="updateLineItem(${i},'unitPrice',this.value)"><input type="number" class="form-input line-item-qty" placeholder="Qtd" value="${li.quantity||1}" oninput="updateLineItem(${i},'quantity',this.value)"><div class="line-item-subtotal">${formatCurrency(sub)}</div><button class="delete-btn" onclick="removeLineItem(${i})" style="width:28px;height:28px;font-size:0.9rem;flex-shrink:0;">×</button></div>${li.note||i===lineItems.length-1?`<input type="text" class="form-input line-item-note" placeholder="Detalle (ej: sabor, diseño...)" value="${esc(li.note||'')}" onchange="updateLineItem(${i},'note',this.value)">`:''}</div>`;
+            const isService=!!li.serviceKey;
+            return `<div class="line-item" draggable="true" data-idx="${i}" style="${isService?'border-left:3px solid var(--primary);':''}" ondragstart="onLineDragStart(event,${i})" ondragover="onLineDragOver(event)" ondragenter="onLineDragEnter(event)" ondragleave="onLineDragLeave(event)" ondrop="onLineDrop(event,${i})" ondragend="onLineDragEnd(event)"><div class="line-item-row"><span class="drag-handle">⠿</span><input type="text" class="form-input line-item-desc" placeholder="Descripción" value="${esc(li.description||'')}" ${isService?'readonly style="background:var(--primary-light);font-weight:600;padding:10px;font-size:0.9rem;"':'onchange="updateLineItem('+i+',\'description\',this.value)"'}><input type="number" class="form-input line-item-price" placeholder="Precio" value="${li.unitPrice||''}" oninput="updateLineItem(${i},'unitPrice',this.value)"><input type="number" class="form-input line-item-qty" placeholder="Qtd" value="${li.quantity||1}" oninput="updateLineItem(${i},'quantity',this.value)"><div class="line-item-subtotal">${formatCurrency(sub)}</div>${isService?'<div style="width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--primary-dark);" title="Désélectionner le service pour retirer">🔗</div>':'<button class="delete-btn" onclick="removeLineItem('+i+')" style="width:28px;height:28px;font-size:0.9rem;flex-shrink:0;">×</button>'}</div><input type="text" class="form-input line-item-note" placeholder="Detalle (ej: sabor, diseño...)" value="${esc(li.note||'')}" onchange="updateLineItem(${i},'note',this.value)"></div>`;
         }).join('');
         recalcLineItems();
     }

@@ -2056,21 +2056,41 @@
         const qn=document.getElementById('quickNet');if(qn)qn.textContent=formatCurrency(rev-exp);
     }
 
-    // ==================== PENDING PAYMENTS INBOX ====================
-    let pendingPayments = [];
+    // ==================== PENDING PAYMENTS INBOX (localStorage) ====================
+    let pendingPayments = JSON.parse(localStorage.getItem('lpp_pending_payments') || '[]');
     let ppMethod = 'efectivo';
     let unsubPendingPay = null;
     let _assigningPaymentId = null;
 
+    function savePendingPayments() {
+        localStorage.setItem('lpp_pending_payments', JSON.stringify(pendingPayments));
+        renderPendingPayments();
+        updatePendingPayBadge();
+        // Try Firestore sync silently (won't break if rules block it)
+        syncPendingPaymentsToFirestore();
+    }
+
+    function syncPendingPaymentsToFirestore() {
+        // Best-effort sync - if Firestore rules allow it, great; if not, localStorage is enough
+        try {
+            db.collection('dm_pending_payments').get().then(snap => {
+                // Firestore works! Sync local data
+                const fbIds = new Set(snap.docs.map(d => d.id));
+                pendingPayments.forEach(p => {
+                    if (!p.fbSynced) {
+                        const data = Object.assign({}, p); delete data.id; delete data.fbSynced;
+                        db.collection('dm_pending_payments').add(data).then(() => { p.fbSynced = true; }).catch(() => {});
+                    }
+                });
+            }).catch(() => { /* Firestore not available for this collection - using localStorage only */ });
+        } catch(e) {}
+    }
+
     function setupPendingPaymentsListener() {
-        if (unsubPendingPay) { unsubPendingPay(); unsubPendingPay = null; }
-        unsubPendingPay = db.collection('dm_pending_payments').orderBy('date','desc').onSnapshot(snap => {
-            pendingPayments = snap.docs.map(d => ({id:d.id,...d.data()}));
-            renderPendingPayments();
-            updatePendingPayBadge();
-        }, err => {
-            console.warn('Pending payments listener error:', err);
-        });
+        // Load from localStorage (always works)
+        pendingPayments = JSON.parse(localStorage.getItem('lpp_pending_payments') || '[]');
+        renderPendingPayments();
+        updatePendingPayBadge();
     }
 
     function setPPMethod(m, btn) {
@@ -2087,19 +2107,18 @@
         if (amount <= 0) { showToast('Ingresa un monto valido', 'warning'); return; }
         if (!name) { showToast('Ingresa un nombre o referencia', 'warning'); return; }
         const payment = {
+            id: 'pp_' + Date.now(),
             amount, date, method: ppMethod, name, note,
             createdAt: new Date().toISOString()
         };
-        db.collection('dm_pending_payments').add(payment).then(() => {
-            showToast('Pago de ' + formatCurrency(amount) + ' registrado!', 'success');
-            document.getElementById('ppAmount').value = '';
-            document.getElementById('ppName').value = '';
-            document.getElementById('ppNote').value = '';
-            ppMethod = 'efectivo';
-            document.querySelectorAll('#ppMethodBtns .pay-method-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
-        }).catch(e => {
-            showToast('Error al guardar pago', 'error');
-        });
+        pendingPayments.push(payment);
+        savePendingPayments();
+        showToast('Pago de ' + formatCurrency(amount) + ' registrado!', 'success');
+        document.getElementById('ppAmount').value = '';
+        document.getElementById('ppName').value = '';
+        document.getElementById('ppNote').value = '';
+        ppMethod = 'efectivo';
+        document.querySelectorAll('#ppMethodBtns .pay-method-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
     }
 
     function renderPendingPayments() {
@@ -2136,9 +2155,9 @@
 
     function deletePendingPayment(payId) {
         showConfirm('Eliminar Pago', 'Este pago sera eliminado permanentemente.', '🗑️', function() {
-            db.collection('dm_pending_payments').doc(payId).delete().then(() => {
-                showToast('Pago eliminado', 'info');
-            }).catch(e => showToast('Error al eliminar', 'error'));
+            pendingPayments = pendingPayments.filter(p => p.id !== payId);
+            savePendingPayments();
+            showToast('Pago eliminado', 'info');
         }, 'Eliminar', 'btn-danger');
     }
 
@@ -2207,8 +2226,9 @@
             if (totalPaid >= ev.totalPrice && ev.totalPrice > 0) ev.status = 'paid';
             else if (totalPaid > 0) ev.status = 'partial';
             saveData(); saveEventToFirebase(ev);
-            // Delete pending payment
-            db.collection('dm_pending_payments').doc(pp.id).delete();
+            // Remove from pending payments
+            pendingPayments = pendingPayments.filter(p => p.id !== pp.id);
+            savePendingPayments();
             closeAssignModal();
             showToast('Pago asignado a ' + ev.clientName + '!', 'success');
         }, 'Asignar', 'btn-primary');

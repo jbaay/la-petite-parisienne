@@ -366,5 +366,17 @@
         .event-group-title { font-family: 'Playfair Display', serif; font-size: 0.9rem; color: var(--text-medium); padding: 12px 4px 8px; display: flex; align-items: center; gap: 8px; }
         .event-group-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+        /* ============ PENDING PAYMENTS INBOX ============ */
+        .pp-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg-cream); border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--border); }
+        .pp-item-info { flex: 1; }
+        .pp-item-name { font-weight: 700; font-size: 0.95rem; color: var(--text-dark); }
+        .pp-item-detail { font-size: 0.8rem; color: var(--text-medium); margin-top: 2px; }
+        .pp-item-amount { font-weight: 700; font-size: 1.1rem; color: var(--success); text-align: right; }
+        .pp-item-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .pp-assign-btn { background: var(--primary); color: white; border: none; padding: 8px 14px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .pp-assign-btn:hover { background: var(--primary-dark); }
+        .pp-delete-btn { background: transparent; color: var(--danger); border: 1px solid var(--danger); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; }
+        .pending-pay-badge { position: absolute; top: 8px; right: 8px; background: var(--danger); color: white; font-size: 0.7rem; font-weight: 700; min-width: 20px; height: 20px; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+
         /* Adjust main content padding for bottom nav */
         .main-content { padding-bottom: 80px !important; }

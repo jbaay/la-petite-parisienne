@@ -391,6 +391,18 @@
         .event-group-title { font-family: 'Playfair Display', serif; font-size: 0.9rem; color: var(--text-medium); padding: 12px 4px 8px; display: flex; align-items: center; gap: 8px; }
         .event-group-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+        /* ============ PENDING PAYMENTS INBOX ============ */
+        .pp-item { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg-cream); border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--border); }
+        .pp-item-info { flex: 1; }
+        .pp-item-name { font-weight: 700; font-size: 0.95rem; color: var(--text-dark); }
+        .pp-item-detail { font-size: 0.8rem; color: var(--text-medium); margin-top: 2px; }
+        .pp-item-amount { font-weight: 700; font-size: 1.1rem; color: var(--success); text-align: right; }
+        .pp-item-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .pp-assign-btn { background: var(--primary); color: white; border: none; padding: 8px 14px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .pp-assign-btn:hover { background: var(--primary-dark); }
+        .pp-delete-btn { background: transparent; color: var(--danger); border: 1px solid var(--danger); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; }
+        .pending-pay-badge { position: absolute; top: 8px; right: 8px; background: var(--danger); color: white; font-size: 0.7rem; font-weight: 700; min-width: 20px; height: 20px; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+
         /* Adjust main content padding for bottom nav */
         .main-content { padding-bottom: 80px !important; }
     </style>
@@ -461,6 +473,7 @@
                     <div class="menu-item" onclick="showSection('events')"><div class="menu-item-icon">📋</div><div class="menu-item-title">Mis Eventos</div><div class="menu-item-subtitle">Ver y gestionar</div></div>
                     <div class="menu-item" onclick="showSection('dashboard')"><div class="menu-item-icon">📊</div><div class="menu-item-title">Dashboard</div><div class="menu-item-subtitle">Estadísticas</div></div>
                     <div class="menu-item" onclick="showSection('expenses')"><div class="menu-item-icon">💸</div><div class="menu-item-title">Gastos</div><div class="menu-item-subtitle">Control mensual</div></div>
+                    <div class="menu-item" onclick="showSection('pendingPayments')" style="position:relative;"><div class="menu-item-icon">💳</div><div class="menu-item-title">Pagos Recibidos</div><div class="menu-item-subtitle">Sin asignar</div><span class="pending-pay-badge" id="pendingPayBadge" style="display:none;"></span></div>
                 </div>
             </div>
             <div class="menu-section" style="margin-bottom:15px;">
@@ -669,6 +682,32 @@
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
         </section>
 
+        <!-- SECTION: Pagos Recibidos (Inbox) -->
+        <section id="pendingPayments" class="section">
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">💳 Registrar Pago Recibido</h3></div>
+                <p style="font-size:0.85rem;color:var(--text-medium);margin-bottom:12px;">Registra un pago que recibiste. Podras asignarlo a un evento despues.</p>
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                    <div style="flex:1;"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">Monto</label><input type="number" class="form-input" id="ppAmount" placeholder="5000" style="padding:12px;font-size:1rem;"></div>
+                    <div style="flex:1;"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">Fecha</label><input type="date" class="form-input" id="ppDate" style="padding:12px;"></div>
+                </div>
+                <div class="form-group"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">Nombre / Referencia</label><input type="text" class="form-input" id="ppName" placeholder="Nombre, referencia o descripcion" style="padding:12px;"></div>
+                <label class="form-label" style="font-size:0.8rem;margin-bottom:6px;">Metodo</label>
+                <div style="display:flex;gap:6px;margin-bottom:10px;" id="ppMethodBtns">
+                    <button class="pay-method-btn active" onclick="setPPMethod('efectivo',this)" style="flex:1;padding:10px;">💵 Efectivo</button>
+                    <button class="pay-method-btn" onclick="setPPMethod('transferencia',this)" style="flex:1;padding:10px;">🏦 Transfer</button>
+                    <button class="pay-method-btn" onclick="setPPMethod('tarjeta',this)" style="flex:1;padding:10px;">💳 Tarjeta</button>
+                </div>
+                <input type="text" class="form-input" id="ppNote" placeholder="Nota (opcional)" style="padding:10px;margin-bottom:10px;">
+                <button class="btn btn-success" onclick="addPendingPayment()" style="padding:14px;width:100%;font-size:1rem;">💳 Registrar Pago</button>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">📥 Pagos Sin Asignar</h3><span class="card-badge badge-pending" id="ppTotalBadge">$0</span></div>
+                <div id="pendingPaymentsList"></div>
+            </div>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menu</button>
+        </section>
+
         <!-- SECTION: Service Form -->
         <section id="serviceForm" class="section"><div id="serviceFormContent"></div></section>
     </main>
@@ -688,6 +727,9 @@
 
     <!-- Template Picker Modal -->
     <div id="templateModal" style="display:none;"><div class="modal-backdrop" onclick="closeTemplatePicker()"></div><div class="modal-sheet"><div class="modal-handle"></div><h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:16px;">📑 Seleccionar Template</h3><div id="templatePickerList"></div></div></div>
+
+    <!-- Assign Payment to Event Modal -->
+    <div id="assignPayModal" style="display:none;"><div class="modal-backdrop" onclick="closeAssignModal()"></div><div class="modal-sheet"><div class="modal-handle"></div><h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:12px;">📋 Asignar a un Evento</h3><div id="assignPayInfo" style="margin-bottom:12px;"></div><input type="text" class="form-input" id="assignSearchInput" placeholder="Buscar evento por nombre..." oninput="filterAssignEvents(this.value)" style="padding:10px;margin-bottom:12px;"><div id="assignEventsList"></div></div></div>
 
     <!-- Photo Full Modal -->
     <div id="photoFullModal" style="display:none;"></div>
@@ -801,6 +843,7 @@
             if (unsubEvents) unsubEvents();
             if (unsubExpenses) unsubExpenses();
             if (unsubTemplates) unsubTemplates();
+            if (unsubPendingPay) unsubPendingPay();
         }
     });
 
@@ -848,7 +891,10 @@
         if (unsubEvents) { unsubEvents(); unsubEvents = null; }
         if (unsubExpenses) { unsubExpenses(); unsubExpenses = null; }
         if (unsubTemplates) { unsubTemplates(); unsubTemplates = null; }
+        if (unsubPendingPay) { unsubPendingPay(); unsubPendingPay = null; }
         updateSyncStatus('syncing');
+        // Pending payments listener
+        setupPendingPaymentsListener();
         // Events listener - update data always but debounce UI refresh
         unsubEvents = db.collection('dm_events').orderBy('eventDate','asc').onSnapshot({includeMetadataChanges:true}, snap => {
             const hasPending = snap.docs.some(d => d.metadata.hasPendingWrites);
@@ -1073,6 +1119,10 @@
         else if (sectionId==='dashboard') { updateDashboard(); setTimeout(renderChart,200); }
         else if (sectionId==='expenses') renderExpenses();
         else if (sectionId==='templates') renderTemplates();
+        else if (sectionId==='pendingPayments') {
+            renderPendingPayments();
+            const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=new Date().toISOString().split('T')[0];
+        }
         computeNotifications();
         window.scrollTo(0,0);
     }
@@ -2004,6 +2054,164 @@
         const qr=document.getElementById('quickRevenue');if(qr)qr.textContent=formatCurrency(rev);
         const qe=document.getElementById('quickExpenses');if(qe)qe.textContent=formatCurrency(exp);
         const qn=document.getElementById('quickNet');if(qn)qn.textContent=formatCurrency(rev-exp);
+    }
+
+    // ==================== PENDING PAYMENTS INBOX ====================
+    let pendingPayments = [];
+    let ppMethod = 'efectivo';
+    let unsubPendingPay = null;
+    let _assigningPaymentId = null;
+
+    function setupPendingPaymentsListener() {
+        if (unsubPendingPay) { unsubPendingPay(); unsubPendingPay = null; }
+        unsubPendingPay = db.collection('dm_pending_payments').orderBy('date','desc').onSnapshot(snap => {
+            pendingPayments = snap.docs.map(d => ({id:d.id,...d.data()}));
+            renderPendingPayments();
+            updatePendingPayBadge();
+        }, err => {
+            console.warn('Pending payments listener error:', err);
+        });
+    }
+
+    function setPPMethod(m, btn) {
+        ppMethod = m;
+        document.querySelectorAll('#ppMethodBtns .pay-method-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+    }
+
+    function addPendingPayment() {
+        const amount = parseFloat(document.getElementById('ppAmount').value) || 0;
+        const date = document.getElementById('ppDate').value || new Date().toISOString().split('T')[0];
+        const name = document.getElementById('ppName').value.trim();
+        const note = document.getElementById('ppNote').value.trim();
+        if (amount <= 0) { showToast('Ingresa un monto valido', 'warning'); return; }
+        if (!name) { showToast('Ingresa un nombre o referencia', 'warning'); return; }
+        const payment = {
+            amount, date, method: ppMethod, name, note,
+            createdAt: new Date().toISOString()
+        };
+        db.collection('dm_pending_payments').add(payment).then(() => {
+            showToast('Pago de ' + formatCurrency(amount) + ' registrado!', 'success');
+            document.getElementById('ppAmount').value = '';
+            document.getElementById('ppName').value = '';
+            document.getElementById('ppNote').value = '';
+            ppMethod = 'efectivo';
+            document.querySelectorAll('#ppMethodBtns .pay-method-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
+        }).catch(e => {
+            showToast('Error al guardar pago', 'error');
+        });
+    }
+
+    function renderPendingPayments() {
+        const c = document.getElementById('pendingPaymentsList'); if (!c) return;
+        const totalBadge = document.getElementById('ppTotalBadge');
+        const total = pendingPayments.reduce((s, p) => s + (p.amount || 0), 0);
+        if (totalBadge) totalBadge.textContent = formatCurrency(total);
+        if (pendingPayments.length === 0) {
+            c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-medium);"><div style="font-size:2.5rem;margin-bottom:10px;">✅</div><p>No hay pagos pendientes de asignar</p></div>';
+            return;
+        }
+        const mi = {'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
+        c.innerHTML = pendingPayments.map(p => `<div class="pp-item">
+            <div style="font-size:1.5rem;">${mi[p.method]||'💵'}</div>
+            <div class="pp-item-info">
+                <div class="pp-item-name">${esc(p.name)}</div>
+                <div class="pp-item-detail">${formatDate(p.date)}${p.note ? ' - ' + esc(p.note) : ''}</div>
+                <div class="pp-item-actions">
+                    <button class="pp-assign-btn" onclick="openAssignModal('${esc(p.id)}')">📋 Asignar a evento</button>
+                    <button class="pp-delete-btn" onclick="deletePendingPayment('${esc(p.id)}')">🗑️</button>
+                </div>
+            </div>
+            <div class="pp-item-amount">${formatCurrency(p.amount)}</div>
+        </div>`).join('');
+    }
+
+    function updatePendingPayBadge() {
+        const badge = document.getElementById('pendingPayBadge');
+        if (badge) {
+            if (pendingPayments.length > 0) { badge.style.display = 'flex'; badge.textContent = pendingPayments.length; }
+            else { badge.style.display = 'none'; }
+        }
+    }
+
+    function deletePendingPayment(payId) {
+        showConfirm('Eliminar Pago', 'Este pago sera eliminado permanentemente.', '🗑️', function() {
+            db.collection('dm_pending_payments').doc(payId).delete().then(() => {
+                showToast('Pago eliminado', 'info');
+            }).catch(e => showToast('Error al eliminar', 'error'));
+        }, 'Eliminar', 'btn-danger');
+    }
+
+    function openAssignModal(payId) {
+        _assigningPaymentId = payId;
+        const pp = pendingPayments.find(p => p.id === payId); if (!pp) return;
+        const modal = document.getElementById('assignPayModal');
+        modal.style.display = 'block';
+        const mi = {'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
+        document.getElementById('assignPayInfo').innerHTML = `<div style="background:#e8f5e9;padding:12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;"><div><strong>${esc(pp.name)}</strong><br><small style="color:var(--text-medium);">${formatDate(pp.date)} ${mi[pp.method]||''}</small></div><div style="font-weight:700;font-size:1.2rem;color:var(--success);">${formatCurrency(pp.amount)}</div></div>`;
+        document.getElementById('assignSearchInput').value = '';
+        renderAssignEvents('');
+    }
+
+    function closeAssignModal() {
+        document.getElementById('assignPayModal').style.display = 'none';
+        _assigningPaymentId = null;
+    }
+
+    function filterAssignEvents(q) { renderAssignEvents(q); }
+
+    function renderAssignEvents(q) {
+        const c = document.getElementById('assignEventsList'); if (!c) return;
+        let evs = [...appData.events];
+        // Sort: non-paid first, then by date desc
+        evs.sort((a, b) => {
+            if (a.status === 'paid' && b.status !== 'paid') return 1;
+            if (a.status !== 'paid' && b.status === 'paid') return -1;
+            return new Date(b.eventDate) - new Date(a.eventDate);
+        });
+        if (q && q.trim()) {
+            const ql = q.toLowerCase();
+            evs = evs.filter(e => (e.clientName || '').toLowerCase().includes(ql) || (e.venue || '').toLowerCase().includes(ql));
+        }
+        if (evs.length === 0) { c.innerHTML = '<p style="text-align:center;color:var(--text-medium);padding:20px;">Sin resultados</p>'; return; }
+        c.innerHTML = evs.slice(0, 15).map(ev => {
+            const sb = {pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status] || {c:'badge-pending',t:'Pendiente'};
+            const remaining = Math.max(0, ev.totalPrice - (ev.payments || []).reduce((s, p) => s + (p.amount || 0), 0));
+            return `<div class="event-item" onclick="assignPaymentToEvent('${esc(ev.id)}')">
+                <div class="event-icon">📋</div>
+                <div class="event-details">
+                    <div class="event-name">${esc(ev.clientName)}</div>
+                    <div class="event-date">${formatDate(ev.eventDate)} • Resta: ${formatCurrency(remaining)}</div>
+                </div>
+                <div class="event-amount"><span class="card-badge ${sb.c}">${sb.t}</span></div>
+            </div>`;
+        }).join('');
+    }
+
+    function assignPaymentToEvent(eventId) {
+        if (!_assigningPaymentId) return;
+        const pp = pendingPayments.find(p => p.id === _assigningPaymentId);
+        const ev = appData.events.find(e => e.id === eventId);
+        if (!pp || !ev) return;
+        showConfirm('Asignar Pago', 'Asignar ' + formatCurrency(pp.amount) + ' de "' + pp.name + '" al evento de ' + ev.clientName + '?', '💳', function() {
+            // Add payment to event
+            if (!ev.payments) ev.payments = [];
+            ev.payments.push({
+                amount: pp.amount,
+                date: pp.date,
+                method: pp.method,
+                note: (pp.name || '') + (pp.note ? ' - ' + pp.note : '')
+            });
+            // Recalculate status
+            const totalPaid = ev.payments.reduce((s, p) => s + (p.amount || 0), 0);
+            if (totalPaid >= ev.totalPrice && ev.totalPrice > 0) ev.status = 'paid';
+            else if (totalPaid > 0) ev.status = 'partial';
+            saveData(); saveEventToFirebase(ev);
+            // Delete pending payment
+            db.collection('dm_pending_payments').doc(pp.id).delete();
+            closeAssignModal();
+            showToast('Pago asignado a ' + ev.clientName + '!', 'success');
+        }, 'Asignar', 'btn-primary');
     }
 
     // ==================== CLIENT AUTOCOMPLETE ====================

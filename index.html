@@ -348,6 +348,51 @@
         .line-item.drag-over { border-color: var(--primary); border-style: dashed; background: var(--primary-light); }
         .drag-handle { cursor: grab; font-size: 1.2rem; color: var(--text-light); padding: 0 6px; user-select: none; touch-action: none; }
         .drag-handle:active { cursor: grabbing; }
+
+        /* ============ BOTTOM NAVIGATION BAR ============ */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--bg-white); display: flex; justify-content: space-around; padding: 6px 0 max(6px, env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px var(--shadow); border-top: 1px solid var(--border); }
+        .bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; border: none; background: transparent; cursor: pointer; padding: 6px 10px; border-radius: 12px; transition: all 0.2s ease; font-family: 'Nunito', sans-serif; min-width: 56px; }
+        .bottom-nav-icon { font-size: 1.3rem; line-height: 1; }
+        .bottom-nav-label { font-size: 0.6rem; font-weight: 600; color: var(--text-light); line-height: 1; }
+        .bottom-nav-item.active .bottom-nav-label { color: var(--primary-dark); font-weight: 700; }
+        .bottom-nav-item.active { background: var(--primary-light); }
+
+        /* ============ CLIENT AUTOCOMPLETE ============ */
+        .autocomplete-wrapper { position: relative; }
+        .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-white); border: 2px solid var(--primary); border-top: none; border-radius: 0 0 12px 12px; max-height: 180px; overflow-y: auto; z-index: 50; box-shadow: 0 8px 20px var(--shadow-strong); display: none; }
+        .autocomplete-dropdown.visible { display: block; }
+        .autocomplete-item { padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+        .autocomplete-item:hover, .autocomplete-item:active { background: var(--primary-light); }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-name { font-weight: 600; color: var(--text-dark); font-size: 0.95rem; }
+        .autocomplete-phone { font-size: 0.8rem; color: var(--text-medium); }
+        .autocomplete-events { font-size: 0.75rem; color: var(--primary-dark); }
+
+        /* ============ QUICK PAYMENT (Event Detail) ============ */
+        .quick-pay-card { background: linear-gradient(135deg, #f0faf0 0%, #e8f5e9 100%); border: 2px solid #c5d4b5; border-radius: 16px; padding: 18px; margin-top: 12px; }
+        .quick-pay-title { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--text-dark); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .quick-pay-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .quick-pay-row .form-input { padding: 10px; font-size: 0.9rem; }
+
+        /* ============ CLIENT HISTORY ============ */
+        .client-history { margin-top: 12px; }
+        .client-history-title { font-family: 'Playfair Display', serif; font-size: 0.95rem; color: var(--text-medium); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .client-history-item { display: flex; align-items: center; padding: 10px; background: var(--bg-cream); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border); gap: 10px; }
+        .client-history-item:hover { border-color: var(--primary); }
+
+        /* ============ COUNTDOWN BADGE ============ */
+        .countdown-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 0.7rem; font-weight: 700; margin-left: 6px; }
+        .countdown-today { background: #fef2f2; color: #dc2626; }
+        .countdown-soon { background: #fff8e6; color: #b8860b; }
+        .countdown-upcoming { background: #e8f4fd; color: #2c5282; }
+        .countdown-past { background: var(--bg-cream); color: var(--text-light); }
+
+        /* ============ EVENT GROUP DIVIDER ============ */
+        .event-group-title { font-family: 'Playfair Display', serif; font-size: 0.9rem; color: var(--text-medium); padding: 12px 4px 8px; display: flex; align-items: center; gap: 8px; }
+        .event-group-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+        /* Adjust main content padding for bottom nav */
+        .main-content { padding-bottom: 80px !important; }
     </style>
 </head>
 <body>
@@ -402,13 +447,8 @@
         <button onclick="logout()" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 12px;border-radius:20px;font-size:0.75rem;cursor:pointer;">Salir</button>
     </header>
 
-    <nav class="nav-buttons" id="navButtons">
-        <button class="nav-btn back" id="backToMenuBtn" style="display:none;" onclick="goToMainMenu()">← Menú</button>
-        <button class="nav-btn primary" onclick="showSection('newEvent')">➕ Nuevo</button>
-        <button class="nav-btn secondary" onclick="showSection('events')">📋 Eventos</button>
-        <button class="nav-btn secondary" onclick="showSection('dashboard')">📊 Dashboard</button>
-        <button class="nav-btn secondary" onclick="showSection('expenses')">💸 Gastos</button>
-        <button class="nav-btn secondary" onclick="showSection('templates')">📑 Templates</button>
+    <nav class="nav-buttons" id="navButtons" style="display:none;">
+        <button class="nav-btn back" id="backToMenuBtn" style="display:none;" onclick="goBack()">← Volver</button>
     </nav>
 
     <main class="main-content">
@@ -452,7 +492,7 @@
             <div id="templatePickerBtn" style="margin-bottom:16px;"><button class="btn btn-secondary" onclick="showTemplatePicker()" style="padding:12px;">📑 Usar Template</button></div>
             <div class="card">
                 <div class="card-header"><h3 class="card-title" id="formTitle">✨ Nuevo Evento</h3></div>
-                <div class="form-group"><label class="form-label">Nombre del Cliente</label><input type="text" class="form-input" id="clientName" placeholder="Nombre completo"></div>
+                <div class="form-group autocomplete-wrapper"><label class="form-label">Nombre del Cliente</label><input type="text" class="form-input" id="clientName" placeholder="Nombre completo" autocomplete="off" oninput="onClientNameInput(this.value)" onfocus="onClientNameInput(this.value)"><div class="autocomplete-dropdown" id="clientAutocomplete"></div></div>
                 <div class="form-group"><label class="form-label">WhatsApp</label><input type="tel" class="form-input" id="clientPhone" placeholder="+52 777 123 4567"></div>
                 <div class="form-group"><label class="form-label">Fecha del Evento</label><input type="date" class="form-input" id="eventDate"></div>
                 <div class="form-group"><label class="form-label">Lugar</label><select class="form-select" id="eventVenue"><option value="">Seleccionar lugar...</option><option value="Finca Paraíso">Finca Paraíso</option><option value="Hacienda de Cortés">Hacienda de Cortés</option><option value="Jardín Borda">Jardín Borda</option><option value="Otro">Otro</option></select></div>
@@ -632,6 +672,15 @@
         <!-- SECTION: Service Form -->
         <section id="serviceForm" class="section"><div id="serviceFormContent"></div></section>
     </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav" id="bottomNav">
+        <button class="bottom-nav-item active" onclick="goToMainMenu()" data-section="mainMenu"><span class="bottom-nav-icon">🏠</span><span class="bottom-nav-label">Inicio</span></button>
+        <button class="bottom-nav-item" onclick="showSection('newEvent')" data-section="newEvent"><span class="bottom-nav-icon">✨</span><span class="bottom-nav-label">Nuevo</span></button>
+        <button class="bottom-nav-item" onclick="showSection('events')" data-section="events"><span class="bottom-nav-icon">📋</span><span class="bottom-nav-label">Eventos</span></button>
+        <button class="bottom-nav-item" onclick="showSection('dashboard')" data-section="dashboard"><span class="bottom-nav-icon">📊</span><span class="bottom-nav-label">Stats</span></button>
+        <button class="bottom-nav-item" onclick="showSection('expenses')" data-section="expenses"><span class="bottom-nav-icon">💸</span><span class="bottom-nav-label">Gastos</span></button>
+    </nav>
     </div>
 
     <!-- Notification Modal -->
@@ -985,12 +1034,40 @@
     }
 
     // ==================== NAVIGATION ====================
+    let _previousSection = 'mainMenu';
+    function goBack() {
+        const current = document.querySelector('.section.active');
+        const currentId = current ? current.id : '';
+        if (currentId === 'eventDetail') showSection('events');
+        else if (currentId === 'serviceForm') goToMainMenu();
+        else if (currentId === 'templates') goToMainMenu();
+        else goToMainMenu();
+    }
     function showSection(sectionId) {
+        const current = document.querySelector('.section.active');
+        if (current && current.id !== sectionId) _previousSection = current.id;
         saveFormData();
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         document.getElementById(sectionId).classList.add('active');
         const backBtn = document.getElementById('backToMenuBtn');
-        backBtn.style.display = sectionId==='mainMenu' ? 'none' : 'flex';
+        const navBar = document.getElementById('navButtons');
+        // Show top back bar for sub-sections (eventDetail, serviceForm, templates)
+        const subSections = ['eventDetail','serviceForm','templates'];
+        if (subSections.includes(sectionId)) {
+            navBar.style.display = 'flex';
+            backBtn.style.display = 'flex';
+        } else {
+            navBar.style.display = 'none';
+            backBtn.style.display = 'none';
+        }
+        // Update bottom nav active state
+        document.querySelectorAll('.bottom-nav-item').forEach(b => {
+            b.classList.toggle('active', b.dataset.section === sectionId);
+        });
+        // Show/hide bottom nav on sub-sections
+        const bottomNav = document.getElementById('bottomNav');
+        if (subSections.includes(sectionId)) { bottomNav.style.display = 'none'; }
+        else { bottomNav.style.display = 'flex'; }
         if (sectionId==='newEvent' && !editingEventId) restoreFormData();
         if (sectionId==='events') renderEvents();
         else if (sectionId==='dashboard') { updateDashboard(); setTimeout(renderChart,200); }
@@ -1406,27 +1483,54 @@
         clearFormData(); showToast('Evento guardado!','success'); goToMainMenu();
     }
 
+    function getCountdownInfo(dateStr) {
+        if(!dateStr) return {text:'',css:''};
+        const now=new Date(); now.setHours(0,0,0,0);
+        const ed=new Date(dateStr+'T12:00:00');
+        const diff=Math.ceil((ed-now)/86400000);
+        if(diff===0) return {text:'HOY',css:'countdown-today',days:diff};
+        if(diff===1) return {text:'MANANA',css:'countdown-soon',days:diff};
+        if(diff>1&&diff<=7) return {text:'En '+diff+' dias',css:'countdown-soon',days:diff};
+        if(diff>7) return {text:'En '+diff+' dias',css:'countdown-upcoming',days:diff};
+        if(diff===-1) return {text:'Ayer',css:'countdown-past',days:diff};
+        return {text:'Hace '+Math.abs(diff)+' dias',css:'countdown-past',days:diff};
+    }
+
     function renderEvents() {
         const c=document.getElementById('eventsList'); if(!c)return;
         let evs=[...appData.events];
-        evs.sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
-        // Only filter events (not global search), search field now handled by globalSearch
+        // Smart sort: upcoming events first (by date asc), then past events (by date desc)
+        const now=new Date(); now.setHours(0,0,0,0);
+        const upcoming=evs.filter(e=>new Date(e.eventDate+'T12:00:00')>=now).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
+        const past=evs.filter(e=>new Date(e.eventDate+'T12:00:00')<now).sort((a,b)=>new Date(b.eventDate)-new Date(a.eventDate));
+        evs=[...upcoming,...past];
+        // Search filter
         const q=(document.getElementById('eventSearch')||{}).value||'';
         if(q.trim()){const ql=q.toLowerCase();evs=evs.filter(e=>(e.clientName||'').toLowerCase().includes(ql)||(e.venue||'').toLowerCase().includes(ql)||(e.plannerName||'').toLowerCase().includes(ql));}
         if(currentFilter!=='all') evs=evs.filter(e=>e.status===currentFilter);
         if(evs.length===0){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-medium);"><div style="font-size:3rem;margin-bottom:15px;">📭</div><p>No hay eventos'+(currentFilter!=='all'?' con este filtro':'')+'</p></div>';return;}
-        // Pagination: show only eventsDisplayed
+        // Pagination
         const total=evs.length;
         const shown=evs.slice(0,eventsDisplayed);
-        c.innerHTML=shown.map(ev=>{
+        // Build HTML with group dividers
+        let html='';
+        let currentGroup='';
+        shown.forEach(ev=>{
+            const cd=getCountdownInfo(ev.eventDate);
+            const group=cd.days>=0?'upcoming':'past';
+            if(group!==currentGroup){
+                currentGroup=group;
+                html+=`<div class="event-group-title">${group==='upcoming'?'📅 Proximos Eventos':'📁 Eventos Pasados'}</div>`;
+            }
             const sb={pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status]||{c:'badge-pending',t:'Pendiente'};
             const si=(ev.services||[]).map(s=>({pastel:'🎂',mesa_dulces:'🍬',postres:'🧁',quesos:'🧀',bebidas:'🥂',otro:'📦'}[s]||'📦')).join('');
             const pc=(ev.photos||[]).length;
-            return `<div class="event-item" onclick="showEventDetail('${esc(ev.id)}')"><div class="event-icon">${si||'🎂'}</div><div class="event-details"><div class="event-name">${esc(ev.clientName)}${pc?' 📷':''}</div><div class="event-date">${formatDate(ev.eventDate)} • ${esc(ev.venue||'Sin lugar')}</div></div><div class="event-amount"><div class="event-total">${formatCurrency(ev.totalPrice)}</div><div class="event-status"><span class="card-badge ${sb.c}">${sb.t}</span></div></div></div>`;
-        }).join('');
-        // Show "load more" if there are more events
+            const cdBadge=cd.text?`<span class="countdown-badge ${cd.css}">${cd.text}</span>`:'';
+            html+=`<div class="event-item" onclick="showEventDetail('${esc(ev.id)}')"><div class="event-icon">${si||'🎂'}</div><div class="event-details"><div class="event-name">${esc(ev.clientName)}${pc?' 📷':''}${cdBadge}</div><div class="event-date">${formatDate(ev.eventDate)} • ${esc(ev.venue||'Sin lugar')}</div></div><div class="event-amount"><div class="event-total">${formatCurrency(ev.totalPrice)}</div><div class="event-status"><span class="card-badge ${sb.c}">${sb.t}</span></div></div></div>`;
+        });
+        c.innerHTML=html;
         if(total>eventsDisplayed){
-            c.innerHTML+=`<button class="load-more-btn" onclick="loadMoreEvents()">Cargar más (${eventsDisplayed}/${total}) ↓</button>`;
+            c.innerHTML+=`<button class="load-more-btn" onclick="loadMoreEvents()">Cargar mas (${eventsDisplayed}/${total}) ↓</button>`;
         }
     }
     function loadMoreEvents() { eventsDisplayed+=eventsPageSize; renderEvents(); }
@@ -1485,10 +1589,16 @@
         const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
         const photoH=(ev.photos||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📷 Fotos</h3></div><div class="photo-scroll">${ev.photos.map((p,i)=>`<img src="${p}" class="photo-thumb" onclick="viewPhoto(${i},'detail')">`).join('')}</div></div>`:'';
         const liH=(ev.lineItems||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📋 Cotización</h3></div><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:8px;color:var(--text-medium);font-weight:600;">Descripción</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Precio</th><th style="text-align:center;padding:8px;color:var(--text-medium);font-weight:600;">Qtd</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Total</th></tr>${ev.lineItems.map(li=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">${esc(li.description||'-')}${li.note?'<br><small style="color:var(--text-medium);">'+esc(li.note)+'</small>':''}</td><td style="text-align:right;padding:8px;">${formatCurrency(li.unitPrice||0)}</td><td style="text-align:center;padding:8px;">${li.quantity||1}</td><td style="text-align:right;padding:8px;font-weight:600;">${formatCurrency((li.unitPrice||0)*(li.quantity||1))}</td></tr>`).join('')}<tr><td colspan="3" style="text-align:right;padding:10px 8px;font-weight:700;">TOTAL</td><td style="text-align:right;padding:10px 8px;font-weight:700;font-size:1.1rem;">${formatCurrency(ev.lineItems.reduce((s,li)=>s+(li.unitPrice||0)*(li.quantity||1),0))}</td></tr></table></div>`:'';
+        // Pre-build quick payment and client history sections
+        const quickPayHtml=buildQuickPaySection(ev);
+        const clientHistoryHtml=buildClientHistory(ev);
+        // Countdown info for this event
+        const cdInfo=getCountdownInfo(ev.eventDate);
+        const cdTag=cdInfo.text?`<span class="countdown-badge ${cdInfo.css}" style="font-size:0.8rem;margin-left:8px;">${cdInfo.text}</span>`:'';
 
         c.innerHTML=`
             <div class="card"><div class="card-header"><h3 class="card-title">${esc(ev.clientName)}</h3><span class="card-badge ${ev.status==='paid'?'badge-paid':ev.status==='partial'?'badge-partial':'badge-pending'}">${ev.status==='paid'?'Pagado':ev.status==='partial'?'Parcial':'Pendiente'}</span></div>
-            <div class="payment-row"><span class="payment-label">📅 Fecha</span><span class="payment-value">${formatDate(ev.eventDate)}</span></div>
+            <div class="payment-row"><span class="payment-label">📅 Fecha</span><span class="payment-value">${formatDate(ev.eventDate)}${cdTag}</span></div>
             <div class="payment-row"><span class="payment-label">📍 Lugar</span><span class="payment-value">${esc(ev.venue||'No especificado')}</span></div>
             <div class="payment-row"><span class="payment-label">👥 Invitados</span><span class="payment-value">${ev.guestCount||'-'}</span></div>
             <div class="payment-row"><span class="payment-label">📱 WhatsApp</span><span class="payment-value">${esc(ev.clientPhone||'-')}</span></div></div>
@@ -1505,11 +1615,14 @@
             </div>
             ${totalPaid>0&&totalPaid<ev.totalPrice?`<div style="margin-top:10px;background:var(--border);border-radius:6px;height:8px;overflow:hidden;"><div style="height:100%;background:var(--success);border-radius:6px;width:${Math.min(100,Math.round(totalPaid/ev.totalPrice*100))}%;"></div></div><div style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:4px;">${Math.round(totalPaid/ev.totalPrice*100)}% cobrado</div>`:''}
             ${(ev.payments||[]).length>0?'<div style="margin-top:15px;">'+payH+'</div>':'<p style="color:var(--text-light);text-align:center;padding:12px;">Sin pagos registrados</p>'}
-            ${ev.hasPlanner?`<div style="margin-top:15px;padding:15px;background:#fff8e6;border-radius:12px;border:1px solid #f0d78c;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:600;">🤝 Comisión ${esc(ev.plannerName)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${ev.commissionRate}% = ${formatCurrency(ev.commission)}</div></div><div onclick="toggleCommissionPaid('${esc(ev.id)}')" style="cursor:pointer;font-size:1.5rem;">${ev.commissionPaid?'✅':'⬜'}</div></div></div>`:''}</div>
+            ${ev.hasPlanner?`<div style="margin-top:15px;padding:15px;background:#fff8e6;border-radius:12px;border:1px solid #f0d78c;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:600;">🤝 Comisión ${esc(ev.plannerName)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${ev.commissionRate}% = ${formatCurrency(ev.commission)}</div></div><div onclick="toggleCommissionPaid('${esc(ev.id)}')" style="cursor:pointer;font-size:1.5rem;">${ev.commissionPaid?'✅':'⬜'}</div></div></div>`:''}
+            ${quickPayHtml}</div>
 
             ${photoH}
 
             ${ev.notes?`<div class="card"><div class="card-header"><h3 class="card-title">📝 Notas</h3></div><p style="color:var(--text-medium);">${esc(ev.notes)}</p></div>`:''}
+
+            ${clientHistoryHtml}
 
             <div style="display:flex;gap:8px;margin-bottom:10px;">
                 <button class="btn btn-primary" onclick="generatePDF('devis')" style="flex:1;padding:12px;">📄 Cotización PDF</button>
@@ -1519,6 +1632,7 @@
             <button class="btn btn-secondary" onclick="saveAsTemplate('${esc(ev.id)}')" style="margin-bottom:10px;">📑 Guardar como Template</button>
             ${ev.clientPhone?`<button class="btn btn-whatsapp" onclick="contactWhatsApp('${esc(ev.clientPhone)}','${esc(ev.clientName)}')">📱 Contactar por WhatsApp</button>`:''}
             <button class="btn btn-primary" style="margin-top:10px;" onclick="editEvent('${esc(ev.id)}')">✏️ Modificar Evento</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="duplicateEvent('${esc(ev.id)}')">📋 Duplicar Evento</button>
             <button class="btn btn-danger" style="margin-top:10px;" onclick="deleteEvent('${esc(ev.id)}')">🗑️ Eliminar Evento</button>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="showSection('events')">← Volver a Eventos</button>`;
         showSection('eventDetail');
@@ -1891,7 +2005,141 @@
         const qe=document.getElementById('quickExpenses');if(qe)qe.textContent=formatCurrency(exp);
         const qn=document.getElementById('quickNet');if(qn)qn.textContent=formatCurrency(rev-exp);
     }
+
+    // ==================== CLIENT AUTOCOMPLETE ====================
+    function getUniqueClients() {
+        const map={};
+        appData.events.forEach(ev=>{
+            const name=(ev.clientName||'').trim();
+            if(!name) return;
+            const key=name.toLowerCase();
+            if(!map[key]) map[key]={name:name,phone:ev.clientPhone||'',count:0};
+            map[key].count++;
+            if(ev.clientPhone && !map[key].phone) map[key].phone=ev.clientPhone;
+        });
+        return Object.values(map).sort((a,b)=>b.count-a.count);
+    }
+
+    function onClientNameInput(val) {
+        const dropdown=document.getElementById('clientAutocomplete');
+        if(!dropdown) return;
+        const q=(val||'').trim().toLowerCase();
+        if(q.length<1){dropdown.classList.remove('visible');return;}
+        const clients=getUniqueClients().filter(c=>c.name.toLowerCase().includes(q));
+        if(clients.length===0){dropdown.classList.remove('visible');return;}
+        dropdown.innerHTML=clients.slice(0,6).map(c=>`<div class="autocomplete-item" onmousedown="selectClient('${esc(c.name)}','${esc(c.phone)}')"><div class="autocomplete-name">${esc(c.name)}</div><div class="autocomplete-phone">${c.phone?'📱 '+esc(c.phone):'Sin telefono'}</div><div class="autocomplete-events">${c.count} evento${c.count>1?'s':''}</div></div>`).join('');
+        dropdown.classList.add('visible');
+    }
+
+    function selectClient(name,phone) {
+        document.getElementById('clientName').value=name;
+        if(phone) document.getElementById('clientPhone').value=phone;
+        document.getElementById('clientAutocomplete').classList.remove('visible');
+    }
+
+    // Close autocomplete when clicking outside
+    document.addEventListener('click',function(e){
+        const dd=document.getElementById('clientAutocomplete');
+        if(dd && !e.target.closest('.autocomplete-wrapper')) dd.classList.remove('visible');
+    });
+
+    // ==================== QUICK PAYMENT FROM DETAIL ====================
+    let quickPayMethod='efectivo';
+
+    function buildQuickPaySection(ev) {
+        if(ev.status==='paid') return '';
+        const remaining=Math.max(0,ev.totalPrice-(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0));
+        return `<div class="quick-pay-card">
+            <div class="quick-pay-title">⚡ Pago Rapido</div>
+            <div class="quick-pay-row">
+                <div style="flex:1;"><input type="number" class="form-input" id="quickPayAmount" placeholder="${remaining}" style="padding:10px;"></div>
+                <div style="flex:1;"><input type="date" class="form-input" id="quickPayDate" value="${new Date().toISOString().split('T')[0]}" style="padding:10px;"></div>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px;" id="quickPayMethodBtns">
+                <button class="pay-method-btn active" onclick="setQuickPayMethod('efectivo',this)" style="flex:1;padding:8px;">💵 Efectivo</button>
+                <button class="pay-method-btn" onclick="setQuickPayMethod('transferencia',this)" style="flex:1;padding:8px;">🏦 Transfer</button>
+                <button class="pay-method-btn" onclick="setQuickPayMethod('tarjeta',this)" style="flex:1;padding:8px;">💳 Tarjeta</button>
+            </div>
+            <input type="text" class="form-input" id="quickPayNote" placeholder="Nota (opcional)" style="padding:8px;margin-bottom:8px;">
+            <button class="btn btn-success" onclick="quickAddPayment('${esc(ev.id)}')" style="padding:12px;">⚡ Registrar Pago</button>
+        </div>`;
+    }
+
+    function setQuickPayMethod(m,btn) {
+        quickPayMethod=m;
+        document.querySelectorAll('#quickPayMethodBtns .pay-method-btn').forEach(b=>b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+    }
+
+    function quickAddPayment(eventId) {
+        const ev=appData.events.find(e=>e.id===eventId);if(!ev)return;
+        const amount=parseFloat(document.getElementById('quickPayAmount').value)||0;
+        const date=document.getElementById('quickPayDate').value||new Date().toISOString().split('T')[0];
+        const note=document.getElementById('quickPayNote').value||'';
+        if(amount<=0){showToast('Ingresa un monto valido','warning');return;}
+        if(!ev.payments) ev.payments=[];
+        ev.payments.push({amount,date,method:quickPayMethod,note});
+        // Recalculate status
+        const totalPaid=ev.payments.reduce((s,p)=>s+(p.amount||0),0);
+        if(totalPaid>=ev.totalPrice&&ev.totalPrice>0) ev.status='paid';
+        else if(totalPaid>0) ev.status='partial';
+        saveData(); saveEventToFirebase(ev);
+        showToast('Pago de '+formatCurrency(amount)+' registrado!','success');
+        quickPayMethod='efectivo';
+        showEventDetail(eventId);
+    }
+
+    // ==================== CLIENT HISTORY ====================
+    function buildClientHistory(ev) {
+        const name=(ev.clientName||'').trim().toLowerCase();
+        if(!name) return '';
+        const others=appData.events.filter(e=>e.id!==ev.id&&(e.clientName||'').trim().toLowerCase()===name);
+        if(others.length===0) return '';
+        const totalRevenue=others.reduce((s,e)=>s+(e.totalPrice||0),0)+ev.totalPrice;
+        let html=`<div class="card client-history"><div class="card-header"><h3 class="card-title">👤 Historial del Cliente</h3><span style="font-size:0.85rem;color:var(--primary-dark);font-weight:700;">${others.length+1} eventos • ${formatCurrency(totalRevenue)}</span></div>`;
+        others.sort((a,b)=>new Date(b.eventDate)-new Date(a.eventDate));
+        html+=others.slice(0,5).map(e=>{
+            const sb={pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[e.status]||{c:'badge-pending',t:'Pendiente'};
+            return `<div class="client-history-item" onclick="showEventDetail('${esc(e.id)}')"><div style="flex:1;"><div style="font-weight:600;font-size:0.9rem;">${formatDate(e.eventDate)}</div><div style="font-size:0.8rem;color:var(--text-medium);">${esc(e.venue||'')}</div></div><div style="text-align:right;"><div style="font-weight:700;font-size:0.9rem;">${formatCurrency(e.totalPrice)}</div><span class="card-badge ${sb.c}" style="font-size:0.65rem;">${sb.t}</span></div></div>`;
+        }).join('');
+        if(others.length>5) html+=`<div style="text-align:center;font-size:0.8rem;color:var(--text-medium);padding:8px;">+ ${others.length-5} eventos mas</div>`;
+        html+='</div>';
+        return html;
+    }
+
+    // ==================== DUPLICATE EVENT ====================
+    function duplicateEvent(eventId) {
+        const ev=appData.events.find(e=>e.id===eventId);if(!ev)return;
+        showConfirm('Duplicar Evento','Se creara una copia de este evento sin pagos ni fotos.','📋',function(){
+            const dup={
+                id:'local_'+Date.now(),
+                clientName:ev.clientName,
+                clientPhone:ev.clientPhone,
+                eventDate:new Date().toISOString().split('T')[0],
+                venue:ev.venue,
+                guestCount:ev.guestCount,
+                services:[...(ev.services||[])],
+                serviceDetails:Object.assign({},ev.serviceDetails||{}),
+                totalPrice:ev.totalPrice,
+                netAmount:ev.totalPrice,
+                hasPlanner:ev.hasPlanner,
+                plannerName:ev.plannerName||'',
+                commissionRate:ev.commissionRate||0,
+                commission:ev.commission||0,
+                commissionPaid:false,
+                notes:ev.notes||'',
+                status:'pending',
+                payments:[],
+                photos:[],
+                lineItems:(ev.lineItems||[]).map(li=>({...li})),
+                createdAt:new Date().toISOString()
+            };
+            appData.events.push(dup); saveData(); saveEventToFirebase(dup);
+            showToast('Evento duplicado!','success');
+            showEventDetail(dup.id);
+        },'Duplicar','btn-primary');
+    }
+
     </script>
-    <script src="app.js"></script>
 </body>
 </html>

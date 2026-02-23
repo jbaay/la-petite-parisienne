@@ -1535,9 +1535,14 @@
 
     function getCountdownInfo(dateStr) {
         if(!dateStr) return {text:'',css:''};
-        const now=new Date(); now.setHours(0,0,0,0);
-        const ed=new Date(dateStr+'T12:00:00');
-        const diff=Math.ceil((ed-now)/86400000);
+        // Build today's date from local parts to avoid timezone drift
+        const now=new Date();
+        const ty=now.getFullYear(), tm=now.getMonth(), td=now.getDate();
+        const today=new Date(ty, tm, td);
+        // Parse event date from YYYY-MM-DD string
+        const parts=dateStr.split('-');
+        const ed=new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+        const diff=Math.round((ed-today)/86400000);
         if(diff===0) return {text:'HOY',css:'countdown-today',days:diff};
         if(diff===1) return {text:'MANANA',css:'countdown-soon',days:diff};
         if(diff>1&&diff<=7) return {text:'En '+diff+' dias',css:'countdown-soon',days:diff};
@@ -1550,9 +1555,10 @@
         const c=document.getElementById('eventsList'); if(!c)return;
         let evs=[...appData.events];
         // Smart sort: upcoming events first (by date asc), then past events (by date desc)
-        const now=new Date(); now.setHours(0,0,0,0);
-        const upcoming=evs.filter(e=>new Date(e.eventDate+'T12:00:00')>=now).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
-        const past=evs.filter(e=>new Date(e.eventDate+'T12:00:00')<now).sort((a,b)=>new Date(b.eventDate)-new Date(a.eventDate));
+        const _n=new Date(); const _today=new Date(_n.getFullYear(),_n.getMonth(),_n.getDate());
+        function _parseDate(ds){const p=ds.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));}
+        const upcoming=evs.filter(e=>_parseDate(e.eventDate)>=_today).sort((a,b)=>_parseDate(a.eventDate)-_parseDate(b.eventDate));
+        const past=evs.filter(e=>_parseDate(e.eventDate)<_today).sort((a,b)=>_parseDate(b.eventDate)-_parseDate(a.eventDate));
         evs=[...upcoming,...past];
         // Search filter
         const q=(document.getElementById('eventSearch')||{}).value||'';
@@ -1825,12 +1831,12 @@
     // ==================== NOTIFICATIONS ====================
     function computeNotifications() {
         const dismissed=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');
-        const now=new Date();now.setHours(0,0,0,0);
+        const _nn=new Date(); const _tod=new Date(_nn.getFullYear(),_nn.getMonth(),_nn.getDate());
         notifications=[];
         appData.events.forEach(ev=>{
             if(!ev.eventDate)return;
-            const ed=new Date(ev.eventDate+'T12:00:00');
-            const diff=Math.ceil((ed-now)/86400000);
+            const _ep=ev.eventDate.split('-'); const ed=new Date(parseInt(_ep[0]),parseInt(_ep[1])-1,parseInt(_ep[2]));
+            const diff=Math.round((ed-_tod)/86400000);
             // Upcoming in 3 days
             if(diff>=0&&diff<=3){const id='upcoming_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'urgent',icon:'📅',title:diff===0?'HOY: '+ev.clientName:diff===1?'MAÑANA: '+ev.clientName:'En '+diff+' días: '+ev.clientName,sub:ev.venue||'',eventId:ev.id});}
             // Overdue payment

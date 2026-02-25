@@ -647,10 +647,14 @@
             <div class="card"><div class="card-header"><h3 class="card-title">📈 Ingresos del Año</h3></div><div class="chart-container"><canvas id="revenueChart"></canvas></div></div>
             <div class="card resico-card">
                 <div class="resico-header"><span class="resico-badge">RESICO</span><h3 class="resico-title">Impuestos del Mes</h3></div>
-                <div class="info-box"><span class="info-box-icon">ℹ️</span> ISR RESICO mensual: 1% (hasta $25,000) | 1.5% ($25,001-$50,000) | 2% (más de $50,000). Pagar antes del día 17 del mes siguiente.</div>
+                <div class="info-box"><span class="info-box-icon">ℹ️</span> Base = pagos <strong>cobrados</strong> en el mes (no ventas). ISR: 1% (≤$25k) | 1.5% ($25k-$50k) | 2% (>$50k). <span id="dashResicoDeadline" style="font-weight:700;"></span></div>
+                <div style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);"><span style="font-size:0.85rem;color:var(--text-medium);">🏦 Cobrado (eventos)</span><span style="font-weight:600;" id="dashCobradoEvts">$0</span></div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);"><span style="font-size:0.85rem;color:var(--text-medium);">📥 Cobrado (sin asignar)</span><span style="font-weight:600;" id="dashCobradoPending">$0</span></div>
+                </div>
                 <div class="resico-info">
-                    <div class="resico-item"><div class="resico-item-label">Ingresos del Mes</div><div class="resico-item-value" id="dashResicoBase">$0</div></div>
-                    <div class="resico-item"><div class="resico-item-label">Tasa Aplicable</div><div class="resico-item-value" id="dashResicoRate">0%</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Total Cobrado</div><div class="resico-item-value" id="dashResicoBase">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Tasa ISR</div><div class="resico-item-value" id="dashResicoRate">0%</div></div>
                     <div class="resico-item"><div class="resico-item-label">ISR a Pagar</div><div class="resico-item-value tax" id="dashResicoTax">$0</div></div>
                     <div class="resico-item"><div class="resico-item-label">Utilidad Neta</div><div class="resico-item-value net" id="dashNetProfit">$0</div></div>
                 </div>
@@ -1216,6 +1220,7 @@
     function clearFormData() {
         formData.newEvent = {};
         selectedServices = []; editingEventId = null;
+        _creatingEventFromPaymentId = null;
         currentPayments = []; formPhotos = []; lineItems = [];
         const ft = document.getElementById('formTitle'); if(ft) ft.textContent = '✨ Nuevo Evento';
         document.getElementById('clientName').value = '';
@@ -1566,6 +1571,13 @@
         }
         const event={id:'local_'+Date.now(),clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,commissionPaid:false,notes:document.getElementById('eventNotes').value,status,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],createdAt:new Date().toISOString()};
         appData.events.push(event); saveData(); saveEventToFirebase(event);
+        // If creating from a pending payment, remove it from the inbox
+        if (_creatingEventFromPaymentId) {
+            pendingPayments = pendingPayments.filter(p => p.id !== _creatingEventFromPaymentId);
+            savePendingPayments();
+            _creatingEventFromPaymentId = null;
+            clearFormData(); showToast('Evento creado y pago asignado!','success'); showEventDetail(event.id); return;
+        }
         clearFormData(); showToast('Evento guardado!','success'); goToMainMenu();
     }
 
@@ -1808,17 +1820,39 @@
         const totalRev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
         const totalExp=mExps.reduce((s,e)=>s+e.amount,0);
         const netInc=totalRev-totalExp;
-        let rr=1;if(totalRev>50000)rr=2;else if(totalRev>25000)rr=1.5;
-        const tax=totalRev*(rr/100);
-        const netP=netInc-tax;
+
+        // RESICO: base = pagos COBRADOS en el mes (no ventas facturadas)
+        let cobradoEvts=0;
+        appData.events.forEach(e=>{(e.payments||[]).forEach(p=>{
+            const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;
+            if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear) cobradoEvts+=p.amount||0;
+        });});
+        let cobradoPending=0;
+        pendingPayments.forEach(p=>{
+            const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;
+            if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear) cobradoPending+=p.amount||0;
+        });
+        const totalCobrado=cobradoEvts+cobradoPending;
+        let rr=1;if(totalCobrado>50000)rr=2;else if(totalCobrado>25000)rr=1.5;
+        const tax=totalCobrado*(rr/100);
+        const netP=totalCobrado-totalExp-tax;
+
         document.getElementById('dashEventCount').textContent=mEvs.length;
         document.getElementById('dashRevenue').textContent=formatCurrency(totalRev);
         document.getElementById('dashExpenses').textContent=formatCurrency(totalExp);
         document.getElementById('dashNet').textContent=formatCurrency(netInc);
-        document.getElementById('dashResicoBase').textContent=formatCurrency(totalRev);
+        document.getElementById('dashCobradoEvts').textContent=formatCurrency(cobradoEvts);
+        document.getElementById('dashCobradoPending').textContent=formatCurrency(cobradoPending);
+        document.getElementById('dashResicoBase').textContent=formatCurrency(totalCobrado);
         document.getElementById('dashResicoRate').textContent=rr+'%';
         document.getElementById('dashResicoTax').textContent=formatCurrency(tax);
         document.getElementById('dashNetProfit').textContent=formatCurrency(netP);
+        // Fecha limite: 17 del mes siguiente
+        const ms=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+        const dlMonth=currentMonth===11?0:currentMonth+1;
+        const dlYear=currentMonth===11?currentYear+1:currentYear;
+        const dlEl=document.getElementById('dashResicoDeadline');
+        if(dlEl) dlEl.textContent='Pagar antes del 17 de '+ms[dlMonth]+' '+dlYear+'.';
 
         // Extra stats
         const avgVal=mEvs.length>0?totalRev/mEvs.length:0;
@@ -2083,7 +2117,13 @@
         const mExps=appData.expenses.filter(e=>e.month===currentMonth&&e.year===currentYear);
         const rev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
         const exp=mExps.reduce((s,e)=>s+e.amount,0);
-        const r=`🥐 *Reporte La Petite Parisienne*\n📅 ${ms[currentMonth]} ${currentYear}\n\n📋 Eventos: ${mEvs.length}\n💰 Ingresos: ${formatCurrency(rev)}\n💸 Gastos: ${formatCurrency(exp)}\n✅ Neto: ${formatCurrency(rev-exp)}`;
+        // Calculate RESICO for report
+        let cob=0;
+        appData.events.forEach(e=>{(e.payments||[]).forEach(p=>{const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear)cob+=p.amount||0;});});
+        pendingPayments.forEach(p=>{const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear)cob+=p.amount||0;});
+        let rr2=1;if(cob>50000)rr2=2;else if(cob>25000)rr2=1.5;
+        const isr=cob*(rr2/100);
+        const r=`🥐 *Reporte La Petite Parisienne*\n📅 ${ms[currentMonth]} ${currentYear}\n\n📋 Eventos: ${mEvs.length}\n💰 Ingresos: ${formatCurrency(rev)}\n💸 Gastos: ${formatCurrency(exp)}\n✅ Neto: ${formatCurrency(rev-exp)}\n\n🏛️ *RESICO*\n💵 Cobrado: ${formatCurrency(cob)}\n📊 Tasa: ${rr2}%\n🧾 ISR: ${formatCurrency(isr)}`;
         window.open('https://wa.me/?text='+encodeURIComponent(r),'_blank');
     }
     function updateQuickStats() {
@@ -2169,6 +2209,7 @@
     // sont filtrees et jamais stockees. Seuls nom, date, concept et montant sont conserves.
 
     let _bankImportData = null; // Temporary - nullified after import/cancel
+    let _creatingEventFromPaymentId = null; // Payment ID when creating event from payment
 
     // Configure pdf.js worker inline (no separate file needed)
     if (typeof pdfjsLib !== 'undefined') {
@@ -2661,12 +2702,38 @@
                 <div class="pp-item-name">${esc(p.name)}</div>
                 <div class="pp-item-detail">${formatDate(p.date)}${p.note ? ' - ' + esc(p.note) : ''}</div>
                 <div class="pp-item-actions">
-                    <button class="pp-assign-btn" onclick="openAssignModal('${esc(p.id)}')">📋 Asignar a evento</button>
+                    <button class="pp-assign-btn" onclick="openAssignModal('${esc(p.id)}')">📋 Asignar</button>
+                    <button class="pp-assign-btn" onclick="createEventFromPayment('${esc(p.id)}')" style="background:var(--primary);color:#fff;">➕ Evento</button>
                     <button class="pp-delete-btn" onclick="deletePendingPayment('${esc(p.id)}')">🗑️</button>
                 </div>
             </div>
             <div class="pp-item-amount">${formatCurrency(p.amount)}</div>
         </div>`).join('');
+    }
+
+    function createEventFromPayment(payId) {
+        const pp = pendingPayments.find(p => p.id === payId);
+        if (!pp) { showToast('Pago no encontrado', 'warning'); return; }
+        clearFormData();
+        _creatingEventFromPaymentId = payId; // Set AFTER clearFormData which resets it
+        // Pre-fill form with payment data
+        document.getElementById('clientName').value = pp.name || '';
+        document.getElementById('eventDate').value = pp.date || new Date().toISOString().split('T')[0];
+        document.getElementById('totalPrice').value = pp.amount || '';
+        document.getElementById('eventNotes').value = pp.note || '';
+        // Add the payment to the form's payment list
+        currentPayments = [{
+            amount: pp.amount,
+            date: pp.date,
+            method: pp.method || 'transferencia',
+            note: pp.name + (pp.note ? ' - ' + pp.note : '')
+        }];
+        renderFormPayments(); calculatePayments();
+        // Update form title
+        const ft = document.getElementById('formTitle');
+        if (ft) ft.textContent = '🏦 Nuevo Evento desde Pago';
+        showSection('newEvent');
+        showToast('Completa los datos del evento', 'info');
     }
 
     function updatePendingPayBadge() {

@@ -17,6 +17,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- pdf.js (Mozilla) - lecture PDF 100% client-side, aucune donnée envoyée -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -701,6 +703,17 @@
                 <input type="text" class="form-input" id="ppNote" placeholder="Nota (opcional)" style="padding:10px;margin-bottom:10px;">
                 <button class="btn btn-success" onclick="addPendingPayment()" style="padding:14px;width:100%;font-size:1rem;">💳 Registrar Pago</button>
             </div>
+            <div class="card" style="border:2px dashed var(--primary);background:var(--primary-bg);">
+                <div style="text-align:center;padding:8px 0;">
+                    <div style="font-size:1.3rem;font-weight:600;color:var(--primary);margin-bottom:4px;">🏦 Importar Estado de Cuenta</div>
+                    <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:10px;">Importa pagos recibidos desde tu PDF de HSBC. 100% local, tus datos nunca salen del navegador.</p>
+                    <input type="file" id="bankPdfInput" accept=".pdf" style="display:none;" onchange="handleBankPdfSelect(this)">
+                    <button class="btn btn-primary" onclick="document.getElementById('bankPdfInput').click()" style="padding:12px 24px;font-size:0.95rem;" id="bankImportBtn">📄 Seleccionar PDF</button>
+                    <div id="bankImportProgress" style="display:none;margin-top:10px;">
+                        <div style="font-size:0.85rem;color:var(--text-medium);">⏳ Procesando...</div>
+                    </div>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-header"><h3 class="card-title">📥 Pagos Sin Asignar</h3><span class="card-badge badge-pending" id="ppTotalBadge">$0</span></div>
                 <div id="pendingPaymentsList"></div>
@@ -730,6 +743,29 @@
 
     <!-- Assign Payment to Event Modal -->
     <div id="assignPayModal" style="display:none;"><div class="modal-backdrop" onclick="closeAssignModal()"></div><div class="modal-sheet"><div class="modal-handle"></div><h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:12px;">📋 Asignar a un Evento</h3><div id="assignPayInfo" style="margin-bottom:12px;"></div><input type="text" class="form-input" id="assignSearchInput" placeholder="Buscar evento por nombre..." oninput="filterAssignEvents(this.value)" style="padding:10px;margin-bottom:12px;"><div id="assignEventsList"></div></div></div>
+
+    <!-- Bank Import Preview Modal -->
+    <div id="bankImportModal" style="display:none;">
+        <div class="modal-backdrop" onclick="closeBankImportModal()"></div>
+        <div class="modal-sheet" style="max-height:85vh;overflow-y:auto;">
+            <div class="modal-handle"></div>
+            <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:8px;">🏦 Pagos Detectados</h3>
+            <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:4px;">Solo se importan nombre, fecha, concepto y monto. Ningun dato de cuenta bancaria.</p>
+            <div id="bankImportSummary" style="margin-bottom:12px;"></div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <button class="btn btn-secondary" onclick="toggleAllBankItems(true)" style="flex:1;padding:8px;font-size:0.8rem;">Seleccionar todos</button>
+                <button class="btn btn-secondary" onclick="toggleAllBankItems(false)" style="flex:1;padding:8px;font-size:0.8rem;">Deseleccionar</button>
+            </div>
+            <div id="bankImportList"></div>
+            <div style="position:sticky;bottom:0;background:var(--bg);padding:12px 0 4px;border-top:1px solid var(--border);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:var(--text-medium);" id="bankImportCount">0 seleccionados</span>
+                    <span style="font-size:1rem;font-weight:700;color:var(--primary);" id="bankImportTotal">$0</span>
+                </div>
+                <button class="btn btn-success" onclick="confirmBankImport()" style="padding:14px;width:100%;font-size:1rem;" id="bankImportConfirmBtn">Importar Pagos</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Photo Full Modal -->
     <div id="photoFullModal" style="display:none;"></div>
@@ -2039,7 +2075,7 @@
 
     // ==================== UTILITIES ====================
     function stripEmojis(str) { if(!str)return''; return str.replace(/[\u{1F600}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1FFFF}]|[\u{FE00}-\u{FEFF}]|[\u{1FA00}-\u{1FAFF}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}]/gu, '').replace(/\s+/g,' ').trim(); }
-    function formatDate(ds) { if(!ds)return''; const d=new Date(ds); return d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }
+    function formatDate(ds) { if(!ds)return''; const p=ds.match(/^(\d{4})-(\d{2})-(\d{2})$/); const d=p?new Date(+p[1],+p[2]-1,+p[3]):new Date(ds); return d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }
     function contactWhatsApp(phone,name) { const cp=phone.replace(/\D/g,'');const msg=encodeURIComponent('Hola '+name+', te escribo de La Petite Parisienne 🥐');window.open('https://wa.me/'+cp+'?text='+msg,'_blank'); }
     function sendMonthlyReport() {
         const ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -2125,6 +2161,488 @@
         document.getElementById('ppNote').value = '';
         ppMethod = 'efectivo';
         document.querySelectorAll('#ppMethodBtns .pay-method-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
+    }
+
+    // ==================== BANK STATEMENT IMPORT (100% client-side) ====================
+    // SECURITE: Le PDF est traite uniquement en memoire dans le navigateur.
+    // Aucune donnee n'est envoyee a un serveur. Les donnees sensibles (comptes, CLABE, RFC)
+    // sont filtrees et jamais stockees. Seuls nom, date, concept et montant sont conserves.
+
+    let _bankImportData = null; // Temporary - nullified after import/cancel
+
+    // Configure pdf.js worker inline (no separate file needed)
+    if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // EBCDIC-to-ASCII decoder for HSBC Mexico PDF font encoding
+    const _ebcdicMap = {};
+    (function() {
+        const up = 'ABCDEFGHI';
+        const upCodes = [0xC1,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9];
+        const up2 = 'JKLMNOPQR';
+        const up2Codes = [0xD1,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9];
+        const up3 = 'STUVWXYZ';
+        const up3Codes = [0xE2,0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9];
+        const lo = 'abcdefghi';
+        const loCodes = [0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89];
+        const lo2 = 'jklmnopqr';
+        const lo2Codes = [0x91,0x92,0x93,0x94,0x95,0x96,0x97,0x98,0x99];
+        const lo3 = 'stuvwxyz';
+        const lo3Codes = [0xA2,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8,0xA9];
+        const digits = '0123456789';
+        const digCodes = [0xF0,0xF1,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,0xF8,0xF9];
+        const specials = [[0x40,' '],[0x4B,'.'],[0x6B,','],[0x5B,'$'],[0x60,'-'],[0x61,'/'],
+            [0x6C,'%'],[0x4D,'('],[0x5D,')'],[0x5E,';'],[0x6D,'_'],[0x7A,':'],[0xFE,'u'],[0xCE,'n']];
+        [upCodes,up2Codes,up3Codes].forEach((codes,gi) => {
+            const chars = [up,up2,up3][gi];
+            codes.forEach((c,i) => { _ebcdicMap[c] = chars[i]; });
+        });
+        [loCodes,lo2Codes,lo3Codes].forEach((codes,gi) => {
+            const chars = [lo,lo2,lo3][gi];
+            codes.forEach((c,i) => { _ebcdicMap[c] = chars[i]; });
+        });
+        digCodes.forEach((c,i) => { _ebcdicMap[c] = digits[i]; });
+        specials.forEach(([c,ch]) => { _ebcdicMap[c] = ch; });
+    })();
+
+    function decodeEBCDIC(text) {
+        let result = '';
+        for (let i = 0; i < text.length; i++) {
+            const code = text.charCodeAt(i);
+            result += _ebcdicMap[code] || (code >= 0x20 && code < 0x7F ? text[i] : text[i]);
+        }
+        return result;
+    }
+
+    // Sanitize: strip account numbers, CLABE, long digit sequences, RFC patterns
+    function sanitizeBankText(text) {
+        if (!text) return '';
+        // Remove CLABE (18 digits), account numbers (10+ digits), RFC patterns
+        let clean = text.replace(/\b\d{10,18}\b/g, '').replace(/\b[A-Z]{3,4}\d{6}[A-Z0-9]{2,3}\b/g, '');
+        // Remove tracking codes (HSBC/MBAN patterns)
+        clean = clean.replace(/\b(HSBC|MBAN|HSB)\w{4,20}\b/g, '');
+        // Collapse whitespace
+        clean = clean.replace(/\s+/g, ' ').trim();
+        return clean;
+    }
+
+    // Rejoin PDF text items that wrap across lines within a cell.
+    // Commas/slashes inside items mark mid-word break points:
+    // e.g., ["FERNANDO,NA", "VARRETE/TOLE", "NTINO"] → "FERNANDO NAVARRETE TOLENTINO"
+    function joinWrappedText(items) {
+        const texts = items.map(it => it.text.trim()).filter(t => t.length > 0);
+        if (texts.length === 0) return '';
+        const words = [];
+        let pending = ''; // fragment waiting to be joined with next line
+        for (const text of texts) {
+            if (/[,\/]/.test(text)) {
+                const parts = text.split(/[,\/]/).map(p => p.trim()).filter(p => p.length > 0);
+                if (parts.length === 0) continue;
+                // First part: completes pending fragment if any
+                words.push(pending ? pending + parts[0] : parts[0]);
+                pending = '';
+                // Middle parts: complete words
+                for (let i = 1; i < parts.length - 1; i++) words.push(parts[i]);
+                // Last part: becomes pending fragment (continues on next line)
+                if (parts.length > 1) pending = parts[parts.length - 1];
+            } else {
+                if (pending) {
+                    words.push(pending + text);
+                    pending = '';
+                } else {
+                    words.push(text);
+                }
+            }
+        }
+        if (pending) words.push(pending);
+        return words.join(' ').replace(/\s+/g, ' ').trim();
+    }
+
+    async function handleBankPdfSelect(input) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+            showToast('Selecciona un archivo PDF', 'warning');
+            input.value = '';
+            return;
+        }
+        // Show progress
+        const prog = document.getElementById('bankImportProgress');
+        const btn = document.getElementById('bankImportBtn');
+        if (prog) prog.style.display = 'block';
+        if (btn) btn.disabled = true;
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const transactions = await parseHSBCStatement(buffer);
+            // buffer is now out of scope and eligible for GC
+            if (!transactions || transactions.length === 0) {
+                showToast('No se encontraron pagos recibidos en el PDF', 'warning');
+                return;
+            }
+            _bankImportData = transactions;
+            renderBankImportPreview(transactions);
+        } catch (err) {
+            showToast('Error al leer el PDF: ' + (err.message || 'formato no reconocido'), 'error');
+        } finally {
+            if (prog) prog.style.display = 'none';
+            if (btn) btn.disabled = false;
+            input.value = ''; // Clear file input - don't retain reference to file
+        }
+    }
+
+    async function parseHSBCStatement(buffer) {
+        if (typeof pdfjsLib === 'undefined') {
+            showToast('Error: pdf.js no cargado. Recarga la pagina.', 'error');
+            return [];
+        }
+        const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
+        const numPages = pdf.numPages;
+
+        // Extract all pages with positional data (for SPEI) and plain text (for main table)
+        const pagesItems = [];  // [{text, x, y}] per page
+        const pagesText = [];   // plain text per page
+
+        for (let i = 1; i <= numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const items = content.items.map(item => ({
+                text: decodeEBCDIC(item.str),
+                x: Math.round(item.transform[4]),
+                y: Math.round(item.transform[5])
+            }));
+            pagesItems.push(items);
+            pagesText.push(items.map(it => it.text).join('\n'));
+            page.cleanup();
+        }
+        pdf.destroy();
+
+        const fullText = pagesText.join('\n---PAGE---\n');
+        const transactions = [];
+
+        // Detect statement period (month/year)
+        let stmtYear = new Date().getFullYear();
+        let stmtMonth = new Date().getMonth();
+        const periodMatch = fullText.match(/(\d{2})\/(\d{2})\/(\d{4})\s+al\s+(\d{2})\/(\d{2})\/(\d{4})/);
+        if (periodMatch) {
+            stmtMonth = parseInt(periodMatch[5]) - 1;
+            stmtYear = parseInt(periodMatch[6]);
+        }
+
+        // ---- POSITIONAL PARSING of SPEI Recibidos ----
+        // Column x-positions in HSBC PDF:
+        // x~39: Date+time | x~123: Bank | x~187: Client name | x~249: Account+Concept
+        // x~335: Concept cont. | x~399: Amount | x~470: Tracking | x~518: Reference
+        const COL_DATE = 39, COL_BANK = 123, COL_NAME = 187, COL_ACCT = 249;
+        const COL_CONCEPT = 335, COL_AMOUNT = 399, COL_TRACK = 470;
+        const X_TOL = 20; // x-position tolerance
+
+        function inCol(x, col) { return Math.abs(x - col) < X_TOL; }
+
+        // Header/footer keywords to exclude from row items
+        const HEADER_KEYWORDS = /^(Fecha de|Operacin|Hora de|Participante|Emisor|Receptor|Nombre del|Ordenante|Beneficiario|Cuenta |Concepto del|pago$|Monto del|Clave de|Rastreo|NÞmero|Numero|Referencia|Folio|Esquema|Cobro Digital|CoDi|Aclaraciones|Cargos Obj|Promociones|Mensajes|No\. Cuenta|Subfolio|Descripcinn|Informacinn)/i;
+
+        for (let pi = 0; pi < pagesItems.length; pi++) {
+            const pageText = pagesText[pi];
+            // Only process pages that contain SPEI Recibidos
+            if (!pageText.includes('Recibidos')) continue;
+
+            const items = pagesItems[pi];
+
+            // Find all SPEI Recibidos headers on this page
+            const speiHeaders = items.filter(it =>
+                it.text.includes('Recibidos') && it.text.includes('SPEI')
+            );
+            if (speiHeaders.length === 0) continue;
+
+            // Find section boundaries: CoDi markers, Aclaraciones, etc.
+            const sectionEnds = items.filter(it =>
+                /^(CoDi:|Aclaraciones|Promociones|Mensajes|Informacinn CoDi)/.test(it.text)
+            ).map(it => it.y);
+
+            for (const header of speiHeaders) {
+                const recibidosY = header.y;
+
+                // Section ends at the first CoDi/boundary BELOW the header
+                const sectionEndY = sectionEnds.filter(y => y < recibidosY - 30)
+                    .reduce((max, y) => Math.max(max, y), -9999);
+
+                // Find all date entries below the header but above section end
+                const dateItems = items.filter(it =>
+                    it.y < recibidosY - 30 &&
+                    it.y > sectionEndY &&
+                    inCol(it.x, COL_DATE) &&
+                    /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2}$/.test(it.text)
+                ).sort((a, b) => b.y - a.y); // Top to bottom
+
+                for (let di = 0; di < dateItems.length; di++) {
+                    const dateItem = dateItems[di];
+                    const dateStr = dateItem.text.substring(0, 10);
+                    const rowY = dateItem.y;
+                    const nextRowY = di + 1 < dateItems.length ? dateItems[di + 1].y : sectionEndY;
+
+                    // Row items: between this date and the next, excluding headers
+                    const rowItems = items.filter(it =>
+                        it.y <= rowY + 5 && it.y > nextRowY + 5 &&
+                        it !== dateItem && !HEADER_KEYWORDS.test(it.text.trim())
+                    );
+
+                    // Extract client name: items at x~187
+                    // PDF wraps long names across lines; commas/slashes mark mid-word break points
+                    const nameItems = rowItems.filter(it => inCol(it.x, COL_NAME))
+                        .sort((a, b) => b.y - a.y);
+                    let clientName = joinWrappedText(nameItems);
+
+                    // Extract concept from x~249 (account+concept) and x~335 (continuation)
+                    const acctItems = rowItems.filter(it => inCol(it.x, COL_ACCT))
+                        .sort((a, b) => b.y - a.y);
+                    const conceptContItems = rowItems.filter(it => inCol(it.x, COL_CONCEPT))
+                        .sort((a, b) => b.y - a.y);
+
+                    let concept = '';
+                    let embeddedAmount = 0;
+                    for (const ai of acctItems) {
+                        let stripped = ai.text.replace(/^\d{18,20}/, '').trim();
+                        // Check if amount is embedded in this field (e.g., "boda Andrea Jose $ 26,000.00")
+                        const embAmtMatch = stripped.match(/\$\s*([\d,]+\.\d{2})/);
+                        if (embAmtMatch) {
+                            embeddedAmount = parseFloat(embAmtMatch[1].replace(/,/g, ''));
+                            stripped = stripped.replace(/\$\s*[\d,]+\.\d{2}/, '').trim();
+                        }
+                        if (stripped) concept += (concept ? ' ' : '') + stripped;
+                    }
+                    for (const ci of conceptContItems) {
+                        const t = ci.text.trim();
+                        if (t && t !== '$' && !/^\$\s*[\d,]+\.\d{2}$/.test(t)) {
+                            concept += (concept ? ' ' : '') + t;
+                        }
+                    }
+                    concept = concept.replace(/\s+/g, ' ').trim();
+
+                    // Extract amount: prefer x~399, fallback to embedded
+                    const amountItems = rowItems.filter(it => inCol(it.x, COL_AMOUNT));
+                    let amount = 0;
+                    for (const ai of amountItems) {
+                        const m = ai.text.match(/\$\s*([\d,]+\.\d{2})/);
+                        if (m) { amount = parseFloat(m[1].replace(/,/g, '')); break; }
+                    }
+                    if (amount <= 0) amount = embeddedAmount;
+                    if (amount <= 0) continue;
+
+                    // Bank name at x~123 - extract concatenated first name
+                    const bankItems = rowItems.filter(it => inCol(it.x, COL_BANK))
+                        .sort((a, b) => b.y - a.y);
+                    let bankFirstName = '';
+                    for (const bi of bankItems) {
+                        const bankConcat = bi.text.match(/^(?:BBVA\s*BANCOME|BANAM|NU\s*MEXICO)(.+)/i);
+                        if (bankConcat && bankConcat[1].trim().length > 1) {
+                            bankFirstName = bankConcat[1].trim();
+                            break;
+                        }
+                    }
+                    if (bankFirstName) {
+                        clientName = bankFirstName + ' ' + clientName;
+                    }
+
+                    // Parse date
+                    const dp = dateStr.split('/');
+                    const isoDate = dp[2] + '-' + dp[1] + '-' + dp[0];
+
+                    transactions.push({
+                        date: isoDate,
+                        name: sanitizeBankText(clientName) || sanitizeBankText(concept),
+                        concept: sanitizeBankText(concept),
+                        amount: amount,
+                        method: 'transferencia',
+                        source: 'spei'
+                    });
+                }
+            }
+        }
+
+        // ---- Parse main transaction table for deposits (CDM + non-SPEI transfers) ----
+        // Main table columns: Day x~44 | Description x~62 | Ref x~350 | Retiro x~370 | Deposito x~430 | Saldo x~518
+        for (let pi = 0; pi < pagesItems.length; pi++) {
+            const pageText = pagesText[pi];
+            if (!pageText.includes('DETALLE MOVIMIENTOS')) continue;
+
+            const items = pagesItems[pi];
+            // Find all description items at x~62 that look like deposits
+            const descItems = items.filter(it =>
+                it.x > 50 && it.x < 80 && it.text.trim().length > 5
+            );
+
+            for (const descItem of descItems) {
+                const desc = descItem.text.trim();
+                const rowY = descItem.y;
+
+                // Skip card transactions, PayPal, charges, etc.
+                if (/^(5\d{9,}|7\d{12,}|CGO |TME\d|LC\d|Moneda extranjera)/.test(desc)) continue;
+
+                // Find the day for this row: item at x~44, same y or slightly above
+                const dayItems = items.filter(it =>
+                    it.x >= 35 && it.x <= 55 && /^\d{2}$/.test(it.text.trim()) &&
+                    Math.abs(it.y - rowY) < 5
+                );
+                if (dayItems.length === 0) continue;
+                const day = parseInt(dayItems[0].text.trim());
+                if (day < 1 || day > 31) continue;
+
+                // Find amounts on same row: deposit column is at x~420-450, balance at x~510+
+                const rowAmounts = items.filter(it =>
+                    Math.abs(it.y - rowY) < 5 && /\$\s*[\d,]+\.\d{2}/.test(it.text)
+                ).sort((a, b) => a.x - b.x);
+
+                // Identify deposit: amount at x~420-460 (NOT at x~360-400 which is retiro/cargo)
+                let depositAmt = 0;
+                for (const ai of rowAmounts) {
+                    const m = ai.text.match(/\$\s*([\d,]+\.\d{2})/);
+                    if (m && ai.x > 415 && ai.x < 500) {
+                        depositAmt = parseFloat(m[1].replace(/,/g, ''));
+                        break;
+                    }
+                }
+                if (depositAmt <= 0) continue;
+
+                const isoDate = stmtYear + '-' + String(stmtMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                // Dedup: same amount within ±4 days (SPEI transfer vs settlement date lag)
+                const depDay = new Date(stmtYear, stmtMonth, day).getTime();
+                const alreadyCaptured = transactions.some(t => {
+                    if (Math.abs(t.amount - depositAmt) >= 0.01) return false;
+                    const [y, m, d] = t.date.split('-').map(Number);
+                    const tDay = new Date(y, m - 1, d).getTime();
+                    return Math.abs(depDay - tDay) <= 4 * 86400000;
+                });
+                if (alreadyCaptured) continue;
+
+                // Clean description: remove reference numbers at end
+                const cleanDesc = sanitizeBankText(desc.replace(/\s+\d{5,}$/, '').trim());
+                const isCDM = /DEPOSITO EN CDM/.test(desc);
+
+                transactions.push({
+                    date: isoDate,
+                    name: isCDM ? 'Deposito en efectivo (CDM)' : cleanDesc,
+                    concept: isCDM ? 'Deposito en cajero automatico' : cleanDesc,
+                    amount: depositAmt,
+                    method: isCDM ? 'efectivo' : 'transferencia',
+                    source: isCDM ? 'cdm' : 'deposito'
+                });
+            }
+        }
+
+        // Sort by date
+        transactions.sort((a, b) => a.date.localeCompare(b.date));
+        return transactions;
+    }
+
+    function isDuplicatePayment(tx) {
+        return pendingPayments.some(p =>
+            Math.abs(p.amount - tx.amount) < 0.01 &&
+            p.date === tx.date &&
+            p.name.toLowerCase().includes(tx.name.substring(0, 8).toLowerCase())
+        );
+    }
+
+    function renderBankImportPreview(transactions) {
+        const modal = document.getElementById('bankImportModal');
+        const list = document.getElementById('bankImportList');
+        const summary = document.getElementById('bankImportSummary');
+        if (!modal || !list) return;
+
+        const mi = {'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
+        const sourceLabels = {'spei':'SPEI','cdm':'Deposito CDM','transferencia':'Transferencia'};
+
+        let dupCount = 0;
+        let html = '';
+        transactions.forEach((tx, idx) => {
+            const isDup = isDuplicatePayment(tx);
+            if (isDup) dupCount++;
+            html += `<label class="bank-import-item${isDup ? ' bank-import-dup' : ''}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-bottom:1px solid var(--border);cursor:pointer;">
+                <input type="checkbox" class="bank-import-cb" data-idx="${idx}" ${isDup ? '' : 'checked'} onchange="updateBankImportTotals()" style="margin-top:4px;min-width:18px;height:18px;">
+                <div style="font-size:1.3rem;">${mi[tx.method] || '🏦'}</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.9rem;">${esc(tx.name)}</div>
+                    ${tx.concept && tx.concept !== tx.name ? '<div style="font-size:0.8rem;color:var(--text-medium);">' + esc(tx.concept) + '</div>' : ''}
+                    <div style="font-size:0.75rem;color:var(--text-light);">${formatDate(tx.date)} · ${sourceLabels[tx.source] || tx.source}${isDup ? ' · <span style="color:var(--warning);font-weight:600;">Ya importado</span>' : ''}</div>
+                </div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--success);white-space:nowrap;">${formatCurrency(tx.amount)}</div>
+            </label>`;
+        });
+        list.innerHTML = html;
+
+        if (summary) {
+            summary.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;">
+                <span style="font-size:0.85rem;background:var(--success-bg);color:var(--success);padding:4px 10px;border-radius:12px;">${transactions.length} pagos detectados</span>
+                ${dupCount > 0 ? '<span style="font-size:0.85rem;background:var(--warning-bg);color:var(--warning);padding:4px 10px;border-radius:12px;">' + dupCount + ' ya importados</span>' : ''}
+            </div>`;
+        }
+
+        updateBankImportTotals();
+        modal.style.display = 'block';
+    }
+
+    function updateBankImportTotals() {
+        if (!_bankImportData) return;
+        const checkboxes = document.querySelectorAll('.bank-import-cb');
+        let count = 0, total = 0;
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const idx = parseInt(cb.dataset.idx);
+                count++;
+                total += _bankImportData[idx].amount;
+            }
+        });
+        const countEl = document.getElementById('bankImportCount');
+        const totalEl = document.getElementById('bankImportTotal');
+        const confirmBtn = document.getElementById('bankImportConfirmBtn');
+        if (countEl) countEl.textContent = count + ' seleccionado' + (count !== 1 ? 's' : '');
+        if (totalEl) totalEl.textContent = formatCurrency(total);
+        if (confirmBtn) {
+            confirmBtn.textContent = 'Importar ' + count + ' pago' + (count !== 1 ? 's' : '');
+            confirmBtn.disabled = count === 0;
+        }
+    }
+
+    function toggleAllBankItems(checked) {
+        document.querySelectorAll('.bank-import-cb').forEach(cb => { cb.checked = checked; });
+        updateBankImportTotals();
+    }
+
+    function confirmBankImport() {
+        if (!_bankImportData) return;
+        const checkboxes = document.querySelectorAll('.bank-import-cb');
+        let imported = 0;
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const idx = parseInt(cb.dataset.idx);
+                const tx = _bankImportData[idx];
+                const payment = {
+                    id: 'pp_' + Date.now() + '_' + imported,
+                    amount: tx.amount,
+                    date: tx.date,
+                    method: tx.method,
+                    name: tx.name,
+                    note: tx.concept && tx.concept !== tx.name ? tx.concept : '',
+                    createdAt: new Date().toISOString(),
+                    importedFrom: 'hsbc' // Flag to identify imported payments
+                };
+                pendingPayments.push(payment);
+                imported++;
+            }
+        });
+        savePendingPayments();
+        closeBankImportModal();
+        showToast(imported + ' pago' + (imported !== 1 ? 's' : '') + ' importado' + (imported !== 1 ? 's' : '') + ' correctamente!', 'success');
+    }
+
+    function closeBankImportModal() {
+        const modal = document.getElementById('bankImportModal');
+        if (modal) modal.style.display = 'none';
+        // SECURITE: Cleanup - nullify all temporary data
+        _bankImportData = null;
+        const list = document.getElementById('bankImportList');
+        if (list) list.innerHTML = '';
     }
 
     function renderPendingPayments() {

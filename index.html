@@ -535,7 +535,7 @@
                 <div class="form-group autocomplete-wrapper"><label class="form-label">Nombre del Cliente</label><input type="text" class="form-input" id="clientName" placeholder="Nombre completo" autocomplete="off" oninput="onClientNameInput(this.value)" onfocus="onClientNameInput(this.value)"><div class="autocomplete-dropdown" id="clientAutocomplete"></div></div>
                 <div class="form-group"><label class="form-label">WhatsApp</label><input type="tel" class="form-input" id="clientPhone" placeholder="+52 777 123 4567"></div>
                 <div class="form-group"><label class="form-label">Fecha del Evento</label><input type="date" class="form-input" id="eventDate"></div>
-                <div class="form-group"><label class="form-label">Lugar</label><select class="form-select" id="eventVenue"><option value="">Seleccionar lugar...</option><option value="Finca Paraíso">Finca Paraíso</option><option value="Hacienda de Cortés">Hacienda de Cortés</option><option value="Jardín Borda">Jardín Borda</option><option value="Otro">Otro</option></select></div>
+                <div class="form-group"><label class="form-label">Lugar</label><select class="form-select" id="eventVenue"><option value="">Seleccionar lugar...</option><optgroup label="Cuernavaca"><option value="Finca Paraíso">Finca Paraíso</option><option value="Hacienda de Cortés">Hacienda de Cortés</option><option value="Jardín Borda">Jardín Borda</option><option value="Casa Lala">Casa Lala</option><option value="Jardín Las Mañanitas">Jardín Las Mañanitas</option><option value="Casa Isabella">Casa Isabella</option><option value="Hacienda San Gabriel">Hacienda San Gabriel</option><option value="Jardín Etnobotánico">Jardín Etnobotánico</option><option value="Quinta Real Cuernavaca">Quinta Real Cuernavaca</option></optgroup><optgroup label="Morelos"><option value="Hacienda Cocoyoc">Hacienda Cocoyoc</option><option value="Hacienda San Antonio El Puente">Hacienda San Antonio El Puente</option><option value="Hacienda Temixco">Hacienda Temixco</option><option value="Casa de Piedra Xochitepec">Casa de Piedra Xochitepec</option><option value="Jardín Tepoztlán">Jardín Tepoztlán</option></optgroup><option value="Domicilio del cliente">Domicilio del cliente</option><option value="Otro">Otro</option></select></div>
                 <div class="form-group" id="otherVenueGroup" style="display:none;"><label class="form-label">Especificar Lugar</label><input type="text" class="form-input" id="otherVenue" placeholder="Nombre del lugar"></div>
                 <div class="form-group"><label class="form-label">Número de Invitados</label><input type="number" class="form-input" id="guestCount" placeholder="150"></div>
             </div>
@@ -1801,7 +1801,7 @@
         document.getElementById('totalPrice').value=ev.totalPrice||'';
         document.getElementById('eventNotes').value=ev.notes||'';
         const vs=document.getElementById('eventVenue');
-        const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda'];
+        const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda','Casa Lala','Jardín Las Mañanitas','Casa Isabella','Hacienda San Gabriel','Jardín Etnobotánico','Quinta Real Cuernavaca','Hacienda Cocoyoc','Hacienda San Antonio El Puente','Hacienda Temixco','Casa de Piedra Xochitepec','Jardín Tepoztlán','Domicilio del cliente'];
         if(kv.includes(ev.venue)){vs.value=ev.venue;document.getElementById('otherVenueGroup').style.display='none';}
         else if(ev.venue){vs.value='Otro';document.getElementById('otherVenue').value=ev.venue;document.getElementById('otherVenueGroup').style.display='block';}
         else{vs.value='';document.getElementById('otherVenueGroup').style.display='none';}
@@ -1975,7 +1975,7 @@
         const t=appTemplates.find(x=>x.id===tid);if(!t)return;
         clearFormData();
         if(t.totalPrice) document.getElementById('totalPrice').value=t.totalPrice;
-        if(t.venue){const vs=document.getElementById('eventVenue');const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda'];if(kv.includes(t.venue))vs.value=t.venue;else{vs.value='Otro';document.getElementById('otherVenue').value=t.venue;document.getElementById('otherVenueGroup').style.display='block';}}
+        if(t.venue){const vs=document.getElementById('eventVenue');const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda','Casa Lala','Jardín Las Mañanitas','Casa Isabella','Hacienda San Gabriel','Jardín Etnobotánico','Quinta Real Cuernavaca','Hacienda Cocoyoc','Hacienda San Antonio El Puente','Hacienda Temixco','Casa de Piedra Xochitepec','Jardín Tepoztlán','Domicilio del cliente'];if(kv.includes(t.venue))vs.value=t.venue;else{vs.value='Otro';document.getElementById('otherVenue').value=t.venue;document.getElementById('otherVenueGroup').style.display='block';}}
         if(t.guestCount) document.getElementById('guestCount').value=t.guestCount;
         if(t.hasPlanner){document.getElementById('hasPlanner').checked=true;document.getElementById('plannerName').value=t.plannerName||'';document.getElementById('commissionRate').value=t.commissionRate||10;togglePlannerFields();}
         if(t.notes) document.getElementById('eventNotes').value=t.notes;
@@ -2135,7 +2135,9 @@
 
         // ====== "Merci !" in footer zone (between 2nd line ~216mm and bottom leaves ~234mm) ======
         doc.setFontSize(26); doc.setTextColor(...brownDark);
-        doc.text('Merci !',CX,232,{align:'center'});
+        doc.text('Merci !',CX,228,{align:'center'});
+        doc.setFontSize(9); doc.setTextColor(...brownLight);
+        doc.text('La Petite Parisienne  |  '+MY_PHONE_DISPLAY+'  |  WhatsApp',CX,236,{align:'center'});
 
         doc.save((type==='devis'?'Cotizacion':'NotaDeVenta')+'_'+ev.clientName.replace(/\s/g,'_')+'.pdf');
     }
@@ -3072,11 +3074,19 @@
             });
         }
 
+        // Self-recap button
+        html += `<div style="margin-top:12px;">
+            <button class="myday-wa-btn" onclick="waDailyRecap()" style="width:100%;justify-content:center;padding:14px;font-size:0.9rem;border-radius:12px;">📱 Enviarme mi récap du jour</button>
+        </div>`;
+
         html += `</div>`;
         container.innerHTML = html;
     }
 
     // ==================== WHATSAPP TEMPLATES ====================
+    const MY_PHONE = '527771107356';
+    const MY_PHONE_DISPLAY = '777 110 7356';
+
     function waOpenChat(phone, message) {
         const cp = (phone||'').replace(/\D/g,'');
         if (!cp) { showToast('Sin número de teléfono', 'warning'); return; }
@@ -3090,7 +3100,7 @@
         const dayStr = diffDays === 0 ? 'hoy' : diffDays === 1 ? 'mañana' : `en ${diffDays} días`;
         const services = (ev.lineItems||[]).filter(li=>li.description).map(li=>li.description).join(', ') || (ev.services||[]).join(', ') || '';
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nTe escribo para confirmar tu evento ${dayStr}:\n\n📅 Fecha: ${formatDate(ev.eventDate)}\n📍 Lugar: ${ev.venue||'Por confirmar'}\n👥 Invitados: ${ev.guestCount||'—'}\n${services?'🎂 Servicios: '+services+'\n':''}\n¿Todo confirmado? Cualquier duda me dices! ✨`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nTe escribo para confirmar tu evento ${dayStr}:\n\n📅 Fecha: ${formatDate(ev.eventDate)}\n📍 Lugar: ${ev.venue||'Por confirmar'}\n👥 Invitados: ${ev.guestCount||'—'}\n${services?'🎂 Servicios: '+services+'\n':''}\n¿Todo confirmado? Cualquier duda me dices! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -3102,7 +3112,7 @@
         const evDate = new Date(ev.eventDate + 'T00:00:00');
         const diffDays = Math.round((evDate - new Date(new Date().toDateString())) / 86400000);
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nEspero que estés bien! Te mando un recordatorio sobre tu evento del ${formatDate(ev.eventDate)}.\n\n💰 Total: ${formatCurrency(ev.totalPrice)}\n✅ Pagado: ${formatCurrency(paid)}\n⏳ Pendiente: ${formatCurrency(remaining)}\n\n${diffDays <= 7 ? 'Como el evento es pronto, ¿podrías hacer la transferencia esta semana?' : '¿Me confirmas cuándo podrías hacer el siguiente abono?'}\n\nGracias! 🙏`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nEspero que estés bien! Te mando un recordatorio sobre tu evento del ${formatDate(ev.eventDate)}.\n\n💰 Total: ${formatCurrency(ev.totalPrice)}\n✅ Pagado: ${formatCurrency(paid)}\n⏳ Pendiente: ${formatCurrency(remaining)}\n\n${diffDays <= 7 ? 'Como el evento es pronto, ¿podrías hacer la transferencia esta semana?' : '¿Me confirmas cuándo podrías hacer el siguiente abono?'}\n\nGracias! 🙏\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -3111,7 +3121,7 @@
         const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
         const services = (ev.lineItems||[]).filter(li=>li.description && li.unitPrice>0).map(li=>`• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`).join('\n') || '';
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje. ¿Te gustaría apartar la fecha? Con un anticipo del 50% aseguramos tu evento.\n\nQuedo pendiente! ✨`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje. ¿Te gustaría apartar la fecha? Con un anticipo del 50% aseguramos tu evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -3119,9 +3129,55 @@
     function waThankYou(eventId) {
         const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi nos quieres recomendar con tus amigos, ¡nos encantaría! Y si tienes fotos del evento, nos encantaría verlas. 📸\n\n¡Hasta la próxima! ✨`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi nos quieres recomendar con tus amigos, ¡nos encantaría! Y si tienes fotos del evento, nos encantaría verlas. 📸\n\n¡Hasta la próxima! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
+    }
+
+    function waDailyRecap() {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const in7days = new Date(today); in7days.setDate(in7days.getDate() + 7);
+        const dayNames = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+        const upcoming = appData.events
+            .filter(e => { const d = new Date(e.eventDate+'T00:00:00'); return d >= today && d <= in7days; })
+            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+
+        const pendingPay = appData.events
+            .filter(e => { if(e.status==='paid') return false; const d=new Date(e.eventDate+'T00:00:00'); return d>=today; })
+            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+
+        const totalToCollect = pendingPay.reduce((s,e) => s + Math.max(0, e.totalPrice - (e.payments||[]).reduce((ss,p)=>ss+(p.amount||0),0)), 0);
+
+        let msg = `🥐 MI DÍA — ${formatDate(today.toISOString().split('T')[0])}\n\n`;
+
+        if (upcoming.length > 0) {
+            msg += `📅 EVENTOS ESTA SEMANA:\n`;
+            upcoming.forEach(ev => {
+                const d = new Date(ev.eventDate+'T00:00:00');
+                const diff = Math.round((d-today)/86400000);
+                const when = diff===0?'HOY':diff===1?'MAÑANA':dayNames[d.getDay()];
+                msg += `• ${when}: ${ev.clientName} — ${ev.venue||'?'} (${ev.guestCount||'?'} inv.)\n`;
+            });
+        } else {
+            msg += `📅 Sin eventos esta semana\n`;
+        }
+
+        if (pendingPay.length > 0) {
+            msg += `\n💰 POR COBRAR: ${formatCurrency(totalToCollect)}\n`;
+            pendingPay.slice(0,5).forEach(ev => {
+                const remaining = Math.max(0, ev.totalPrice - (ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0));
+                msg += `• ${ev.clientName}: ${formatCurrency(remaining)}\n`;
+            });
+        }
+
+        const now = new Date();
+        const mEvs = appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+        const rev = mEvs.reduce((s,e)=>s+(e.totalPrice||0),0);
+        msg += `\n📊 MES: ${mEvs.length} eventos — ${formatCurrency(rev)}`;
+
+        waOpenChat(MY_PHONE, msg);
     }
 
     // ==================== DUPLICATE EVENT ====================

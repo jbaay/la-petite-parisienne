@@ -407,6 +407,29 @@
 
         /* Adjust main content padding for bottom nav */
         .main-content { padding-bottom: 80px !important; }
+
+        /* ============ MY DAY DASHBOARD ============ */
+        .myday-card { background: var(--bg-white); border-radius: 16px; padding: 18px; margin-bottom: 14px; box-shadow: 0 4px 15px var(--shadow); border: 1px solid var(--border); }
+        .myday-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .myday-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--text-dark); }
+        .myday-date { font-size: 0.8rem; color: var(--text-medium); }
+        .myday-empty { text-align: center; padding: 20px; color: var(--text-medium); font-size: 0.9rem; }
+        .myday-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-cream); border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--border); }
+        .myday-item-icon { font-size: 1.3rem; width: 36px; text-align: center; flex-shrink: 0; }
+        .myday-item-info { flex: 1; min-width: 0; }
+        .myday-item-name { font-weight: 700; font-size: 0.9rem; color: var(--text-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .myday-item-detail { font-size: 0.8rem; color: var(--text-medium); margin-top: 2px; }
+        .myday-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .myday-wa-btn { background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; border: none; padding: 8px 12px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+        .myday-wa-btn:hover { transform: scale(1.05); }
+        .myday-action-btn { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .myday-action-btn:hover { transform: scale(1.05); }
+        .myday-section-title { font-size: 0.8rem; font-weight: 700; color: var(--text-medium); text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 8px; display: flex; align-items: center; gap: 6px; }
+        .myday-urgent { border-left: 3px solid var(--danger); }
+        .myday-soon { border-left: 3px solid var(--warning); }
+        .myday-money { background: linear-gradient(135deg, #f0faf0 0%, #e8f5e9 100%); border: 1px solid #c5d4b5; }
+        .myday-amount { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 700; color: var(--success); text-align: center; margin: 8px 0; }
+        .myday-amount-label { font-size: 0.8rem; color: var(--text-medium); text-align: center; }
     </style>
 </head>
 <body>
@@ -468,29 +491,18 @@
     <main class="main-content">
         <!-- SECTION: Menu Principal -->
         <section id="mainMenu" class="section active">
-            <div class="menu-section">
-                <h2 class="menu-title">📅 Acciones Rápidas</h2>
-                <div class="menu-grid">
-                    <div class="menu-item" onclick="showSection('newEvent')"><div class="menu-item-icon">✨</div><div class="menu-item-title">Nuevo Evento</div><div class="menu-item-subtitle">Crear cotización</div></div>
-                    <div class="menu-item" onclick="showSection('events')"><div class="menu-item-icon">📋</div><div class="menu-item-title">Mis Eventos</div><div class="menu-item-subtitle">Ver y gestionar</div></div>
-                    <div class="menu-item" onclick="showSection('dashboard')"><div class="menu-item-icon">📊</div><div class="menu-item-title">Dashboard</div><div class="menu-item-subtitle">Estadísticas</div></div>
-                    <div class="menu-item" onclick="showSection('expenses')"><div class="menu-item-icon">💸</div><div class="menu-item-title">Gastos</div><div class="menu-item-subtitle">Control mensual</div></div>
-                    <div class="menu-item" onclick="showSection('pendingPayments')" style="position:relative;"><div class="menu-item-icon">💳</div><div class="menu-item-title">Pagos Recibidos</div><div class="menu-item-subtitle">Sin asignar</div><span class="pending-pay-badge" id="pendingPayBadge" style="display:none;"></span></div>
+            <!-- MA JOURNEE -->
+            <div id="myDayDashboard"></div>
+
+            <!-- Quick Actions (compact) -->
+            <div class="menu-section" style="margin-top:8px;">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="nav-btn primary" onclick="showSection('newEvent')" style="flex:1;min-width:140px;justify-content:center;">✨ Nuevo Evento</button>
+                    <button class="nav-btn secondary" onclick="showSection('pendingPayments')" style="flex:1;min-width:140px;justify-content:center;position:relative;">💳 Pagos <span class="pending-pay-badge" id="pendingPayBadge" style="display:none;"></span></button>
                 </div>
             </div>
-            <div class="menu-section" style="margin-bottom:15px;">
-                <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="padding:12px;font-size:0.9rem;" id="mainTemplateBtn">🖼️ Cargar Template PDF Cotización</button>
-                <div id="templateStatus" style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:6px;"></div>
-            </div>
-            <div class="menu-section">
-                <h2 class="menu-title">🎂 Nuestros Servicios</h2>
-                <div class="menu-grid">
-                    <div class="menu-item" onclick="showServiceForm('pastel')"><div class="menu-item-icon">🎂</div><div class="menu-item-title">Pastel</div><div class="menu-item-subtitle">Bodas y eventos</div></div>
-                    <div class="menu-item" onclick="showServiceForm('mesa_dulces')"><div class="menu-item-icon">🍬</div><div class="menu-item-title">Mesa de Dulces</div><div class="menu-item-subtitle">Candy bar</div></div>
-                    <div class="menu-item" onclick="showServiceForm('postres')"><div class="menu-item-icon">🧁</div><div class="menu-item-title">Postres</div><div class="menu-item-subtitle">Cupcakes y más</div></div>
-                    <div class="menu-item" onclick="showServiceForm('quesos')"><div class="menu-item-icon">🧀</div><div class="menu-item-title">Mesa de Quesos</div><div class="menu-item-subtitle">Gourmet</div></div>
-                </div>
-            </div>
+
+            <!-- Resumen del Mes -->
             <div class="card">
                 <div class="card-header"><h3 class="card-title">📈 Resumen del Mes</h3></div>
                 <div class="stats-grid">
@@ -500,6 +512,19 @@
                     <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="quickNet">$0</div><div class="stat-label">Neto</div></div>
                 </div>
             </div>
+
+            <!-- Services & Template (collapsed) -->
+            <details style="margin-bottom:16px;">
+                <summary style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--text-dark);cursor:pointer;padding:12px 0;">🎂 Servicios y Templates</summary>
+                <div class="menu-grid" style="margin-top:12px;">
+                    <div class="menu-item" onclick="showServiceForm('pastel')"><div class="menu-item-icon">🎂</div><div class="menu-item-title">Pastel</div><div class="menu-item-subtitle">Bodas y eventos</div></div>
+                    <div class="menu-item" onclick="showServiceForm('mesa_dulces')"><div class="menu-item-icon">🍬</div><div class="menu-item-title">Mesa de Dulces</div><div class="menu-item-subtitle">Candy bar</div></div>
+                    <div class="menu-item" onclick="showServiceForm('postres')"><div class="menu-item-icon">🧁</div><div class="menu-item-title">Postres</div><div class="menu-item-subtitle">Cupcakes y más</div></div>
+                    <div class="menu-item" onclick="showServiceForm('quesos')"><div class="menu-item-icon">🧀</div><div class="menu-item-title">Mesa de Quesos</div><div class="menu-item-subtitle">Gourmet</div></div>
+                </div>
+                <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="padding:12px;font-size:0.9rem;margin-top:12px;" id="mainTemplateBtn">🖼️ Cargar Template PDF Cotización</button>
+                <div id="templateStatus" style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:6px;"></div>
+            </details>
         </section>
 
         <!-- SECTION: Nuevo Evento -->
@@ -1734,7 +1759,15 @@
             </div>
             <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="margin-bottom:10px;padding:10px;font-size:0.85rem;" id="loadTemplateBtn">🖼️ ${pdfTemplateImg?'✅ Cambiar':'Cargar'} Template PDF</button>
             <button class="btn btn-secondary" onclick="saveAsTemplate('${esc(ev.id)}')" style="margin-bottom:10px;">📑 Guardar como Template</button>
-            ${ev.clientPhone?`<button class="btn btn-whatsapp" onclick="contactWhatsApp('${esc(ev.clientPhone)}','${esc(ev.clientName)}')">📱 Contactar por WhatsApp</button>`:''}
+            ${ev.clientPhone?`<div class="card" style="background:linear-gradient(135deg,#e8f8e8 0%,#d4f0d4 100%);border:2px solid #25D366;">
+                <div class="card-header"><h3 class="card-title">📱 Enviar por WhatsApp</h3></div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <button class="myday-wa-btn" onclick="waQuote('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">💰 Enviar Cotización</button>
+                    <button class="myday-wa-btn" onclick="waPaymentReminder('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">💬 Recordar Pago</button>
+                    <button class="myday-wa-btn" onclick="waRecap('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">📅 Confirmar Evento</button>
+                    <button class="myday-wa-btn" onclick="waThankYou('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">🙏 Agradecer</button>
+                </div>
+            </div>`:''}
             <button class="btn btn-primary" style="margin-top:10px;" onclick="editEvent('${esc(ev.id)}')">✏️ Modificar Evento</button>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="duplicateEvent('${esc(ev.id)}')">📋 Duplicar Evento</button>
             <button class="btn btn-danger" style="margin-top:10px;" onclick="deleteEvent('${esc(ev.id)}')">🗑️ Eliminar Evento</button>
@@ -2136,6 +2169,7 @@
         const qr=document.getElementById('quickRevenue');if(qr)qr.textContent=formatCurrency(rev);
         const qe=document.getElementById('quickExpenses');if(qe)qe.textContent=formatCurrency(exp);
         const qn=document.getElementById('quickNet');if(qn)qn.textContent=formatCurrency(rev-exp);
+        renderMyDay();
     }
 
     // ==================== PENDING PAYMENTS INBOX (localStorage) ====================
@@ -2924,6 +2958,170 @@
         if(others.length>5) html+=`<div style="text-align:center;font-size:0.8rem;color:var(--text-medium);padding:8px;">+ ${others.length-5} eventos mas</div>`;
         html+='</div>';
         return html;
+    }
+
+    // ==================== MY DAY DASHBOARD ====================
+    function renderMyDay() {
+        const container = document.getElementById('myDayDashboard');
+        if (!container) return;
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const in7days = new Date(today); in7days.setDate(in7days.getDate() + 7);
+        const in3days = new Date(today); in3days.setDate(in3days.getDate() + 3);
+        const dayNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Events coming up (next 7 days)
+        const upcoming = appData.events
+            .filter(e => {
+                const d = new Date(e.eventDate + 'T00:00:00');
+                return d >= today && d <= in7days;
+            })
+            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+
+        // Payments to follow up: events with remaining balance where event is within 14 days
+        const in14days = new Date(today); in14days.setDate(in14days.getDate() + 14);
+        const toFollowUp = appData.events
+            .filter(e => {
+                if (e.status === 'paid') return false;
+                const d = new Date(e.eventDate + 'T00:00:00');
+                if (d < today) return false; // past events
+                const paid = (e.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+                const remaining = e.totalPrice - paid;
+                return remaining > 0 && d <= in14days;
+            })
+            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+
+        // Money to collect this week
+        const toCollectThisWeek = upcoming
+            .filter(e => e.status !== 'paid')
+            .reduce((s,e) => s + Math.max(0, e.totalPrice - (e.payments||[]).reduce((ss,p)=>ss+(p.amount||0),0)), 0);
+
+        // Build HTML
+        let html = '';
+
+        // Header with greeting
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
+        html += `<div class="myday-card">
+            <div class="myday-header">
+                <div class="myday-title">${greeting} 🥐</div>
+                <div class="myday-date">${dayNames[new Date().getDay()]} ${new Date().getDate()}/${new Date().getMonth()+1}</div>
+            </div>`;
+
+        // Money to collect
+        if (toCollectThisWeek > 0) {
+            html += `<div class="myday-item myday-money">
+                <div style="width:100%;">
+                    <div class="myday-amount-label">Por cobrar esta semana</div>
+                    <div class="myday-amount">${formatCurrency(toCollectThisWeek)}</div>
+                </div>
+            </div>`;
+        }
+
+        // Upcoming events this week
+        if (upcoming.length > 0) {
+            html += `<div class="myday-section-title">📅 Esta semana (${upcoming.length})</div>`;
+            upcoming.forEach(ev => {
+                const evDate = new Date(ev.eventDate + 'T00:00:00');
+                const diffDays = Math.round((evDate - today) / 86400000);
+                let when = '';
+                if (diffDays === 0) when = 'HOY';
+                else if (diffDays === 1) when = 'MAÑANA';
+                else when = dayNames[evDate.getDay()];
+                const urgClass = diffDays === 0 ? 'myday-urgent' : diffDays <= 2 ? 'myday-soon' : '';
+                const paid = (ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+                const remaining = Math.max(0, ev.totalPrice - paid);
+
+                html += `<div class="myday-item ${urgClass}">
+                    <div class="myday-item-icon">${diffDays===0?'🔴':diffDays<=2?'🟡':'📅'}</div>
+                    <div class="myday-item-info">
+                        <div class="myday-item-name">${esc(ev.clientName)}</div>
+                        <div class="myday-item-detail">${when} • ${esc(ev.venue||'')}${remaining>0?' • Resta '+formatCurrency(remaining):' ✅'}</div>
+                    </div>
+                    <div class="myday-item-actions">
+                        ${ev.clientPhone?`<button class="myday-wa-btn" onclick="waRecap('${esc(ev.id)}')">📱</button>`:''}
+                        <button class="myday-action-btn" onclick="showEventDetail('${esc(ev.id)}')">Ver</button>
+                    </div>
+                </div>`;
+            });
+        } else {
+            html += `<div class="myday-empty">Sin eventos esta semana — a disfrutar 🎉</div>`;
+        }
+
+        // Payments to follow up
+        if (toFollowUp.length > 0) {
+            html += `<div class="myday-section-title">💬 Cobros pendientes (${toFollowUp.length})</div>`;
+            toFollowUp.slice(0, 5).forEach(ev => {
+                const paid = (ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+                const remaining = Math.max(0, ev.totalPrice - paid);
+                const evDate = new Date(ev.eventDate + 'T00:00:00');
+                const diffDays = Math.round((evDate - today) / 86400000);
+
+                html += `<div class="myday-item">
+                    <div class="myday-item-icon">💰</div>
+                    <div class="myday-item-info">
+                        <div class="myday-item-name">${esc(ev.clientName)}</div>
+                        <div class="myday-item-detail">${formatCurrency(remaining)} • evento en ${diffDays} día${diffDays!==1?'s':''}</div>
+                    </div>
+                    <div class="myday-item-actions">
+                        ${ev.clientPhone?`<button class="myday-wa-btn" onclick="waPaymentReminder('${esc(ev.id)}')">💬 Cobrar</button>`:''}
+                    </div>
+                </div>`;
+            });
+        }
+
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    // ==================== WHATSAPP TEMPLATES ====================
+    function waOpenChat(phone, message) {
+        const cp = (phone||'').replace(/\D/g,'');
+        if (!cp) { showToast('Sin número de teléfono', 'warning'); return; }
+        window.open('https://wa.me/' + cp + '?text=' + encodeURIComponent(message), '_blank');
+    }
+
+    function waRecap(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+        const evDate = new Date(ev.eventDate + 'T00:00:00');
+        const diffDays = Math.round((evDate - new Date(new Date().toDateString())) / 86400000);
+        const dayStr = diffDays === 0 ? 'hoy' : diffDays === 1 ? 'mañana' : `en ${diffDays} días`;
+        const services = (ev.lineItems||[]).filter(li=>li.description).map(li=>li.description).join(', ') || (ev.services||[]).join(', ') || '';
+
+        const msg = `Hola ${ev.clientName}! 🥐\n\nTe escribo para confirmar tu evento ${dayStr}:\n\n📅 Fecha: ${formatDate(ev.eventDate)}\n📍 Lugar: ${ev.venue||'Por confirmar'}\n👥 Invitados: ${ev.guestCount||'—'}\n${services?'🎂 Servicios: '+services+'\n':''}\n¿Todo confirmado? Cualquier duda me dices! ✨`;
+
+        waOpenChat(ev.clientPhone, msg);
+    }
+
+    function waPaymentReminder(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+        const paid = (ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+        const remaining = Math.max(0, ev.totalPrice - paid);
+        const evDate = new Date(ev.eventDate + 'T00:00:00');
+        const diffDays = Math.round((evDate - new Date(new Date().toDateString())) / 86400000);
+
+        const msg = `Hola ${ev.clientName}! 🥐\n\nEspero que estés bien! Te mando un recordatorio sobre tu evento del ${formatDate(ev.eventDate)}.\n\n💰 Total: ${formatCurrency(ev.totalPrice)}\n✅ Pagado: ${formatCurrency(paid)}\n⏳ Pendiente: ${formatCurrency(remaining)}\n\n${diffDays <= 7 ? 'Como el evento es pronto, ¿podrías hacer la transferencia esta semana?' : '¿Me confirmas cuándo podrías hacer el siguiente abono?'}\n\nGracias! 🙏`;
+
+        waOpenChat(ev.clientPhone, msg);
+    }
+
+    function waQuote(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+        const services = (ev.lineItems||[]).filter(li=>li.description && li.unitPrice>0).map(li=>`• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`).join('\n') || '';
+
+        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje. ¿Te gustaría apartar la fecha? Con un anticipo del 50% aseguramos tu evento.\n\nQuedo pendiente! ✨`;
+
+        waOpenChat(ev.clientPhone, msg);
+    }
+
+    function waThankYou(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+
+        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi nos quieres recomendar con tus amigos, ¡nos encantaría! Y si tienes fotos del evento, nos encantaría verlas. 📸\n\n¡Hasta la próxima! ✨`;
+
+        waOpenChat(ev.clientPhone, msg);
     }
 
     // ==================== DUPLICATE EVENT ====================

@@ -1765,7 +1765,10 @@
                     <button class="myday-wa-btn" onclick="waQuote('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">💰 Enviar Cotización</button>
                     <button class="myday-wa-btn" onclick="waPaymentReminder('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">💬 Recordar Pago</button>
                     <button class="myday-wa-btn" onclick="waRecap('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">📅 Confirmar Evento</button>
-                    <button class="myday-wa-btn" onclick="waThankYou('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">🙏 Agradecer</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="myday-wa-btn" onclick="waThankYou('${esc(ev.id)}')" style="flex:1;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">🙏 Agradecer</button>
+                        <button class="myday-wa-btn" onclick="waThankYouReview('${esc(ev.id)}')" style="flex:1;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);">⭐ Pedir Reseña</button>
+                    </div>
                 </div>
             </div>`:''}
             <button class="btn btn-primary" style="margin-top:10px;" onclick="editEvent('${esc(ev.id)}')">✏️ Modificar Evento</button>
@@ -3129,7 +3132,15 @@
     function waThankYou(eventId) {
         const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi nos quieres recomendar, nos ayudaría mucho una reseña aquí:\n⭐ bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nY si tienes fotos del evento, nos encantaría verlas! 📸\n\n¡Hasta la próxima! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi tienes fotos del evento, nos encantaría verlas! 📸\n\n¡Hasta la próxima! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+
+        waOpenChat(ev.clientPhone, msg);
+    }
+
+    function waThankYouReview(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+
+        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nNos ayudaría muchísimo si pudieras dejarnos una reseña aquí:\n⭐ bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nY si tienes fotos del evento, nos encantaría verlas! 📸\n\n¡Hasta la próxima! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }

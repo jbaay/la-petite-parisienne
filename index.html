@@ -2119,7 +2119,7 @@
             doc.text('Pagado: '+formatCurrency(totalPaid)+' | Restante: '+formatCurrency(ev.totalPrice-totalPaid),CX,y,{align:'center'});
         } else if(type==='devis'){
             y+=7; doc.setFontSize(8); doc.setTextColor(...brownLight);
-            doc.text('Anticipo 50%: '+formatCurrency(ev.totalPrice/2)+' | Liquidacion 50%: '+formatCurrency(ev.totalPrice/2),CX,y,{align:'center'});
+            doc.text('Anticipo 50%: '+formatCurrency(ev.totalPrice/2)+' | Saldo 1 semana antes: '+formatCurrency(ev.totalPrice/2),CX,y,{align:'center'});
         }
         if(type==='nota'&&(ev.payments||[]).length>0){
             y+=8; doc.setFontSize(8); doc.setTextColor(...brown);
@@ -3112,7 +3112,7 @@
         const evDate = new Date(ev.eventDate + 'T00:00:00');
         const diffDays = Math.round((evDate - new Date(new Date().toDateString())) / 86400000);
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nEspero que estés bien! Te mando un recordatorio sobre tu evento del ${formatDate(ev.eventDate)}.\n\n💰 Total: ${formatCurrency(ev.totalPrice)}\n✅ Pagado: ${formatCurrency(paid)}\n⏳ Pendiente: ${formatCurrency(remaining)}\n\n${diffDays <= 7 ? 'Como el evento es pronto, ¿podrías hacer la transferencia esta semana?' : '¿Me confirmas cuándo podrías hacer el siguiente abono?'}\n\nGracias! 🙏\n📱 ${MY_PHONE_DISPLAY}`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nEspero que estés bien! Te mando un recordatorio sobre tu evento del ${formatDate(ev.eventDate)}.\n\n💰 Total: ${formatCurrency(ev.totalPrice)}\n✅ Pagado: ${formatCurrency(paid)}\n⏳ Pendiente: ${formatCurrency(remaining)}\n\n${diffDays <= 7 ? 'Recuerda que el saldo se liquida una semana antes del evento. ¿Podrías hacer la transferencia lo antes posible?' : '¿Me confirmas cuándo podrías hacer el siguiente abono? Recuerda que el saldo se liquida una semana antes del evento.'}\n\nGracias! 🙏\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -3121,7 +3121,7 @@
         const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
         const services = (ev.lineItems||[]).filter(li=>li.description && li.unitPrice>0).map(li=>`• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`).join('\n') || '';
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje. ¿Te gustaría apartar la fecha? Con un anticipo del 50% aseguramos tu evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje.\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\n⭐ Mira nuestras reseñas: bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -3129,7 +3129,7 @@
     function waThankYou(eventId) {
         const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi nos quieres recomendar con tus amigos, ¡nos encantaría! Y si tienes fotos del evento, nos encantaría verlas. 📸\n\n¡Hasta la próxima! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nMuchísimas gracias por confiar en La Petite Parisienne para tu evento! Esperamos que todo haya sido de tu agrado. 🎉\n\nSi nos quieres recomendar, nos ayudaría mucho una reseña aquí:\n⭐ bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nY si tienes fotos del evento, nos encantaría verlas! 📸\n\n¡Hasta la próxima! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }

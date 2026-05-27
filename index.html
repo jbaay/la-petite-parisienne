@@ -430,6 +430,17 @@
         .myday-money { background: linear-gradient(135deg, #f0faf0 0%, #e8f5e9 100%); border: 1px solid #c5d4b5; }
         .myday-amount { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 700; color: var(--success); text-align: center; margin: 8px 0; }
         .myday-amount-label { font-size: 0.8rem; color: var(--text-medium); text-align: center; }
+
+        /* ============ STAR RATING ============ */
+        .rating-stars { display: inline-flex; gap: 2px; }
+        .rating-star { font-size: 1.4rem; cursor: pointer; transition: transform 0.15s; filter: grayscale(1); opacity: 0.4; }
+        .rating-star.filled { filter: none; opacity: 1; }
+        .rating-star:hover { transform: scale(1.2); }
+        .rating-inline { font-size: 0.85rem; color: var(--warning); font-weight: 700; }
+        .myday-review { background: linear-gradient(135deg, #fff8e6 0%, #ffeec4 100%); border: 1px solid #f0d78c; }
+        .myday-rate { background: linear-gradient(135deg, #e8f4fd 0%, #d4eafd 100%); border: 1px solid #b8d4e8; }
+        .rate-prompt-stars { display: flex; justify-content: center; gap: 6px; padding: 8px 0; }
+        .rate-prompt-stars .rating-star { font-size: 1.8rem; }
     </style>
 </head>
 <body>
@@ -1724,6 +1735,24 @@
         // Countdown info for this event
         const cdInfo=getCountdownInfo(ev.eventDate);
         const cdTag=cdInfo.text?`<span class="countdown-badge ${cdInfo.css}" style="font-size:0.8rem;margin-left:8px;">${cdInfo.text}</span>`:'';
+        // Rating card (only show if event is in the past)
+        const _today = new Date(); _today.setHours(0,0,0,0);
+        const _evDate = new Date(ev.eventDate + 'T00:00:00');
+        const _isPast = _evDate < _today;
+        let ratingCard = '';
+        if (_isPast) {
+            const r = ev.rating || 0;
+            const starsHtml = [1,2,3,4,5].map(n =>
+                `<span class="rating-star ${n<=r?'filled':''}" onclick="rateEvent('${esc(ev.id)}',${n})">⭐</span>`
+            ).join('');
+            ratingCard = `<div class="card" style="background:linear-gradient(135deg,#fff8e6 0%,#ffeec4 100%);border:1px solid #f0d78c;">
+                <div class="card-header"><h3 class="card-title">⭐ Tu calificación</h3>${ev.reviewRequested?'<span class="card-badge badge-paid">Reseña pedida</span>':''}</div>
+                <div style="text-align:center;">
+                    <div class="rating-stars" style="justify-content:center;gap:6px;">${starsHtml}</div>
+                    <div style="font-size:0.8rem;color:var(--text-medium);margin-top:8px;">${r===0?'Aún sin calificar':r>=4?'¡Excelente cliente — buen candidato para reseña!':r===3?'Cliente correcto':'Mejor no pedir reseña a este cliente'}</div>
+                </div>
+            </div>`;
+        }
 
         c.innerHTML=`
             <div class="card"><div class="card-header"><h3 class="card-title">${esc(ev.clientName)}</h3><span class="card-badge ${ev.status==='paid'?'badge-paid':ev.status==='partial'?'badge-partial':'badge-pending'}">${ev.status==='paid'?'Pagado':ev.status==='partial'?'Parcial':'Pendiente'}</span></div>
@@ -1749,6 +1778,8 @@
 
             ${photoH}
 
+            ${ratingCard}
+
             ${ev.notes?`<div class="card"><div class="card-header"><h3 class="card-title">📝 Notas</h3></div><p style="color:var(--text-medium);">${esc(ev.notes)}</p></div>`:''}
 
             ${clientHistoryHtml}
@@ -1767,7 +1798,7 @@
                     <button class="myday-wa-btn" onclick="waRecap('${esc(ev.id)}')" style="width:100%;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">📅 Confirmar Evento</button>
                     <div style="display:flex;gap:8px;">
                         <button class="myday-wa-btn" onclick="waThankYou('${esc(ev.id)}')" style="flex:1;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;">🙏 Agradecer</button>
-                        <button class="myday-wa-btn" onclick="waThankYouReview('${esc(ev.id)}')" style="flex:1;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);">⭐ Pedir Reseña</button>
+                        <button class="myday-wa-btn" onclick="waThankYouReview('${esc(ev.id)}');markReviewRequested('${esc(ev.id)}')" style="flex:1;justify-content:center;padding:12px;font-size:0.9rem;border-radius:12px;background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);">⭐ Pedir Reseña</button>
                     </div>
                 </div>
             </div>`:''}
@@ -3077,6 +3108,59 @@
             });
         }
 
+        // Past events to rate (event date has passed, no rating yet)
+        const toRate = appData.events
+            .filter(e => {
+                const d = new Date(e.eventDate + 'T00:00:00');
+                return d < today && !e.rating;
+            })
+            .sort((a,b) => new Date(b.eventDate) - new Date(a.eventDate))
+            .slice(0, 3);
+
+        if (toRate.length > 0) {
+            html += `<div class="myday-section-title">⭐ ¿Cómo fue? — calificar (${toRate.length})</div>`;
+            toRate.forEach(ev => {
+                html += `<div class="myday-item myday-rate">
+                    <div class="myday-item-icon">⭐</div>
+                    <div class="myday-item-info">
+                        <div class="myday-item-name">${esc(ev.clientName)}</div>
+                        <div class="myday-item-detail">${formatDate(ev.eventDate)} • ${esc(ev.venue||'')}</div>
+                        <div class="rate-prompt-stars">
+                            ${[1,2,3,4,5].map(n=>`<span class="rating-star" onclick="rateEvent('${esc(ev.id)}',${n})">⭐</span>`).join('')}
+                        </div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        // High-rated events ready for review request (4-5 stars, not yet asked)
+        const toAskReview = appData.events
+            .filter(e => {
+                if (!e.rating || e.rating < 4) return false;
+                if (e.reviewRequested) return false;
+                if (!e.clientPhone) return false;
+                const d = new Date(e.eventDate + 'T00:00:00');
+                return d < today;
+            })
+            .sort((a,b) => new Date(b.eventDate) - new Date(a.eventDate))
+            .slice(0, 5);
+
+        if (toAskReview.length > 0) {
+            html += `<div class="myday-section-title">🌟 Pedir reseñas a tus mejores clientes (${toAskReview.length})</div>`;
+            toAskReview.forEach(ev => {
+                html += `<div class="myday-item myday-review">
+                    <div class="myday-item-icon">🌟</div>
+                    <div class="myday-item-info">
+                        <div class="myday-item-name">${esc(ev.clientName)} <span class="rating-inline">${'⭐'.repeat(ev.rating)}</span></div>
+                        <div class="myday-item-detail">${formatDate(ev.eventDate)}</div>
+                    </div>
+                    <div class="myday-item-actions">
+                        <button class="myday-wa-btn" onclick="waThankYouReview('${esc(ev.id)}');markReviewRequested('${esc(ev.id)}')" style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);">⭐ Pedir</button>
+                    </div>
+                </div>`;
+            });
+        }
+
         // Self-recap button
         html += `<div style="margin-top:12px;">
             <button class="myday-wa-btn" onclick="waDailyRecap()" style="width:100%;justify-content:center;padding:14px;font-size:0.9rem;border-radius:12px;">📱 Enviarme mi récap du jour</button>
@@ -3084,6 +3168,25 @@
 
         html += `</div>`;
         container.innerHTML = html;
+    }
+
+    // ==================== RATING ====================
+    function rateEvent(eventId, stars) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+        ev.rating = stars;
+        ev.ratedAt = new Date().toISOString();
+        saveData(); saveEventToFirebase(ev);
+        const msg = stars >= 4 ? '⭐ ¡Genial! Te lo voy a sugerir para pedir reseña' : stars >= 3 ? 'Calificación guardada' : 'Calificación guardada — no te sugiero pedir reseña';
+        showToast(msg, stars >= 4 ? 'success' : 'info');
+        renderMyDay();
+    }
+
+    function markReviewRequested(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+        ev.reviewRequested = true;
+        ev.reviewRequestedAt = new Date().toISOString();
+        saveData(); saveEventToFirebase(ev);
+        setTimeout(renderMyDay, 500);
     }
 
     // ==================== WHATSAPP TEMPLATES ====================

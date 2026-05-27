@@ -3360,7 +3360,7 @@
         const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
         const services = (ev.lineItems||[]).filter(li=>li.description && li.unitPrice>0).map(li=>`• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`).join('\n') || '';
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje.\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\n⭐ Mira nuestras reseñas: bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje.\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -3546,7 +3546,7 @@
             `• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`
         ).join('\n');
 
-        const msg = `Hola ${clientName}! 🥐\n\nGracias por contactarnos! Aquí va tu cotización para ${qqSelectedGuests} invitados:\n\n${pkg.icon} ${pkg.name}\n${tier.note}\n\n${servicesText}\n\n💰 Total: ${formatCurrency(total)}\n\n📋 Incluye: ${pkg.includes}\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\n⭐ Nuestras reseñas: bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        const msg = `Hola ${clientName}! 🥐\n\nGracias por contactarnos! Aquí va tu cotización para ${qqSelectedGuests} invitados:\n\n${pkg.icon} ${pkg.name}\n${tier.note}\n\n${servicesText}\n\n💰 Total: ${formatCurrency(total)}\n\n📋 Incluye: ${pkg.includes}\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(clientPhone, msg);
 

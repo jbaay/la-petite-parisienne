@@ -463,15 +463,16 @@
         .cal-legend-item { display: flex; align-items: center; gap: 4px; }
 
         /* ============ STAR RATING ============ */
-        .rating-stars { display: inline-flex; gap: 2px; }
-        .rating-star { font-size: 1.4rem; cursor: pointer; transition: transform 0.15s; filter: grayscale(1); opacity: 0.4; }
-        .rating-star.filled { filter: none; opacity: 1; }
-        .rating-star:hover { transform: scale(1.2); }
-        .rating-inline { font-size: 0.85rem; color: var(--warning); font-weight: 700; }
+        .rating-stars { display: inline-flex; gap: 4px; align-items: center; }
+        .rating-star { font-size: 1.6rem; cursor: pointer; transition: transform 0.15s; line-height: 1; user-select: none; color: #d4a574; }
+        .rating-star.empty { color: #cbc2b6; }
+        .rating-star:hover { transform: scale(1.25); }
+        .rating-star:active { transform: scale(0.95); }
+        .rating-inline { font-size: 0.85rem; color: #d4a574; font-weight: 700; letter-spacing: 1px; }
         .myday-review { background: linear-gradient(135deg, #fff8e6 0%, #ffeec4 100%); border: 1px solid #f0d78c; }
         .myday-rate { background: linear-gradient(135deg, #e8f4fd 0%, #d4eafd 100%); border: 1px solid #b8d4e8; }
-        .rate-prompt-stars { display: flex; justify-content: center; gap: 6px; padding: 8px 0; }
-        .rate-prompt-stars .rating-star { font-size: 1.8rem; }
+        .rate-prompt-stars { display: flex; justify-content: center; gap: 8px; padding: 10px 0; }
+        .rate-prompt-stars .rating-star { font-size: 2rem; }
     </style>
 </head>
 <body>
@@ -1799,7 +1800,7 @@
         if (_isPast) {
             const r = ev.rating || 0;
             const starsHtml = [1,2,3,4,5].map(n =>
-                `<span class="rating-star ${n<=r?'filled':''}" onclick="rateEvent('${esc(ev.id)}',${n})">⭐</span>`
+                `<span class="rating-star ${n<=r?'':'empty'}" onclick="rateEvent('${esc(ev.id)}',${n})">${n<=r?'★':'☆'}</span>`
             ).join('');
             ratingCard = `<div class="card" style="background:linear-gradient(135deg,#fff8e6 0%,#ffeec4 100%);border:1px solid #f0d78c;">
                 <div class="card-header"><h3 class="card-title">⭐ Tu calificación</h3>${ev.reviewRequested?'<span class="card-badge badge-paid">Reseña pedida</span>':''}</div>
@@ -3183,7 +3184,7 @@
                         <div class="myday-item-name">${esc(ev.clientName)}</div>
                         <div class="myday-item-detail">${formatDate(ev.eventDate)} • ${esc(ev.venue||'')}</div>
                         <div class="rate-prompt-stars">
-                            ${[1,2,3,4,5].map(n=>`<span class="rating-star" onclick="rateEvent('${esc(ev.id)}',${n})">⭐</span>`).join('')}
+                            ${[1,2,3,4,5].map(n=>`<span class="rating-star empty" onclick="rateEvent('${esc(ev.id)}',${n})">☆</span>`).join('')}
                         </div>
                     </div>
                 </div>`;
@@ -3208,7 +3209,7 @@
                 html += `<div class="myday-item myday-review">
                     <div class="myday-item-icon">🌟</div>
                     <div class="myday-item-info">
-                        <div class="myday-item-name">${esc(ev.clientName)} <span class="rating-inline">${'⭐'.repeat(ev.rating)}</span></div>
+                        <div class="myday-item-name">${esc(ev.clientName)} <span class="rating-inline">${'★'.repeat(ev.rating)}${'☆'.repeat(5-ev.rating)}</span></div>
                         <div class="myday-item-detail">${formatDate(ev.eventDate)}</div>
                     </div>
                     <div class="myday-item-actions">
@@ -3233,9 +3234,15 @@
         ev.rating = stars;
         ev.ratedAt = new Date().toISOString();
         saveData(); saveEventToFirebase(ev);
-        const msg = stars >= 4 ? '⭐ ¡Genial! Te lo voy a sugerir para pedir reseña' : stars >= 3 ? 'Calificación guardada' : 'Calificación guardada — no te sugiero pedir reseña';
+        const msg = stars >= 4 ? '★ ¡Genial! Te lo voy a sugerir para pedir reseña' : stars >= 3 ? 'Calificación guardada' : 'Calificación guardada — no te sugiero pedir reseña';
         showToast(msg, stars >= 4 ? 'success' : 'info');
-        renderMyDay();
+        // Re-render whichever view is active
+        const detailEl = document.getElementById('eventDetail');
+        if (detailEl && detailEl.classList.contains('active') && currentEventId === eventId) {
+            showEventDetail(eventId);
+        } else {
+            renderMyDay();
+        }
     }
 
     function markReviewRequested(eventId) {

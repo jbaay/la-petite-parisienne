@@ -539,6 +539,7 @@
 
             <!-- Quick Actions (compact) -->
             <div class="menu-section" style="margin-top:8px;">
+                <button class="btn" onclick="showSection('quickQuote')" style="width:100%;padding:18px;background:linear-gradient(135deg,#25D366 0%,#128C7E 100%);color:white;font-size:1.05rem;margin-bottom:8px;box-shadow:0 4px 15px rgba(37,211,102,0.3);">⚡ Cotización Rápida desde WhatsApp</button>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="nav-btn primary" onclick="showSection('newEvent')" style="flex:1;min-width:120px;justify-content:center;">✨ Nuevo</button>
                     <button class="nav-btn secondary" onclick="showSection('calendar')" style="flex:1;min-width:120px;justify-content:center;">📅 Calendario</button>
@@ -814,6 +815,69 @@
                 <div id="pendingPaymentsList"></div>
             </div>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menu</button>
+        </section>
+
+        <!-- SECTION: Cotización Rápida -->
+        <section id="quickQuote" class="section">
+            <div class="card" style="background:linear-gradient(135deg,#e8f8e8 0%,#d4f0d4 100%);border:2px solid #25D366;">
+                <div class="card-header"><h3 class="card-title">⚡ Cotización en 30 segundos</h3></div>
+                <p style="font-size:0.85rem;color:var(--text-medium);margin-bottom:12px;">Cliente te escribió en WhatsApp? Llena estos 5 campos y se envía la cotización lista.</p>
+
+                <div class="form-group autocomplete-wrapper">
+                    <label class="form-label">1. Cliente</label>
+                    <input type="text" class="form-input" id="qqName" placeholder="Nombre completo" autocomplete="off" oninput="qqOnNameInput(this.value)" onfocus="qqOnNameInput(this.value)">
+                    <div class="autocomplete-dropdown" id="qqAutocomplete"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">2. WhatsApp</label>
+                    <input type="tel" class="form-input" id="qqPhone" placeholder="+52 777 123 4567">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">3. Fecha del evento</label>
+                    <input type="date" class="form-input" id="qqDate">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">4. Paquete</label>
+                    <select class="form-select" id="qqPaquete" onchange="qqUpdatePreview()">
+                        <option value="">Elige un paquete...</option>
+                        <optgroup label="🍬 Mesa de Dulces">
+                            <option value="basico">Paquete Básico (snacks)</option>
+                            <option value="premium">Paquete Premium (snacks + postres)</option>
+                            <option value="plus">Paquete Plus (snacks + postres + quesos)</option>
+                        </optgroup>
+                        <optgroup label="🧱 Tasty Walls">
+                            <option value="fromage">Fromage & Friends</option>
+                            <option value="sugar">Sugar Avenue</option>
+                            <option value="fiesta">The Fiesta Wall</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">5. Invitados</label>
+                    <div style="display:flex;gap:8px;" id="qqGuestBtns">
+                        <button class="pay-method-btn" onclick="qqSelectGuests(100,this)" style="flex:1;padding:14px;font-weight:700;">100</button>
+                        <button class="pay-method-btn" onclick="qqSelectGuests(150,this)" style="flex:1;padding:14px;font-weight:700;">150</button>
+                        <button class="pay-method-btn" onclick="qqSelectGuests(200,this)" style="flex:1;padding:14px;font-weight:700;">200</button>
+                    </div>
+                </div>
+
+                <div id="qqPreview" style="display:none;padding:14px;background:var(--bg-white);border-radius:12px;border:2px solid var(--primary);margin-bottom:14px;">
+                    <div id="qqPreviewName" style="font-weight:700;font-size:1.05rem;margin-bottom:4px;"></div>
+                    <div id="qqPreviewDesc" style="font-size:0.85rem;color:var(--text-medium);margin-bottom:8px;"></div>
+                    <div id="qqPreviewIncludes" style="font-size:0.8rem;color:var(--text-medium);margin-bottom:10px;"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:2px solid var(--border);">
+                        <span style="font-size:0.9rem;color:var(--text-medium);">TOTAL</span>
+                        <span id="qqPreviewTotal" style="font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;color:var(--primary-dark);"></span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="qqCreateAndSend()" style="background:linear-gradient(135deg,#25D366 0%,#128C7E 100%);color:white;padding:18px;font-size:1.05rem;box-shadow:0 4px 15px rgba(37,211,102,0.3);">📱 Crear y Enviar Cotización</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
         </section>
 
         <!-- SECTION: Service Form -->
@@ -1252,6 +1316,9 @@
         else if (sectionId==='expenses') renderExpenses();
         else if (sectionId==='templates') renderTemplates();
         else if (sectionId==='calendar') renderCalendar();
+        else if (sectionId==='quickQuote') {
+            const qqd=document.getElementById('qqDate'); if(qqd && !qqd.value) qqd.value=new Date().toISOString().split('T')[0];
+        }
         else if (sectionId==='pendingPayments') {
             renderPendingPayments();
             const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=new Date().toISOString().split('T')[0];
@@ -2986,8 +3053,10 @@
 
     // Close autocomplete when clicking outside
     document.addEventListener('click',function(e){
-        const dd=document.getElementById('clientAutocomplete');
-        if(dd && !e.target.closest('.autocomplete-wrapper')) dd.classList.remove('visible');
+        if (!e.target.closest('.autocomplete-wrapper')) {
+            const dd1=document.getElementById('clientAutocomplete'); if(dd1) dd1.classList.remove('visible');
+            const dd2=document.getElementById('qqAutocomplete'); if(dd2) dd2.classList.remove('visible');
+        }
     });
 
     // ==================== QUICK PAYMENT FROM DETAIL ====================
@@ -3356,6 +3425,142 @@
         msg += `\n📊 MES: ${mEvs.length} eventos — ${formatCurrency(rev)}`;
 
         waOpenChat(MY_PHONE, msg);
+    }
+
+    // ==================== COTIZACION RAPIDA ====================
+    let qqSelectedGuests = null;
+
+    function qqSelectGuests(n, btn) {
+        qqSelectedGuests = n;
+        document.querySelectorAll('#qqGuestBtns .pay-method-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        qqUpdatePreview();
+    }
+
+    function qqUpdatePreview() {
+        const pkgKey = document.getElementById('qqPaquete').value;
+        const preview = document.getElementById('qqPreview');
+        if (!pkgKey || !qqSelectedGuests) { preview.style.display = 'none'; return; }
+        const pkg = CATALOG[pkgKey]; if (!pkg) { preview.style.display = 'none'; return; }
+        // Find matching tier
+        const tier = pkg.tiers.find(t => t.guests === qqSelectedGuests);
+        if (!tier) { preview.style.display = 'none'; return; }
+
+        const total = tier.fixed || (tier.price * tier.guests);
+        document.getElementById('qqPreviewName').textContent = pkg.icon + ' ' + pkg.name + ' — ' + qqSelectedGuests + ' invitados';
+        document.getElementById('qqPreviewDesc').textContent = tier.note;
+        document.getElementById('qqPreviewIncludes').textContent = pkg.includes;
+        document.getElementById('qqPreviewTotal').textContent = formatCurrency(total);
+        preview.style.display = 'block';
+    }
+
+    function qqOnNameInput(val) {
+        const dropdown = document.getElementById('qqAutocomplete'); if (!dropdown) return;
+        const q = (val||'').trim().toLowerCase();
+        if (q.length < 1) { dropdown.classList.remove('visible'); return; }
+        const clients = getUniqueClients().filter(c => c.name.toLowerCase().includes(q));
+        if (clients.length === 0) { dropdown.classList.remove('visible'); return; }
+        dropdown.innerHTML = clients.slice(0,6).map(c =>
+            `<div class="autocomplete-item" onmousedown="qqSelectClient('${esc(c.name)}','${esc(c.phone)}')">
+                <div class="autocomplete-name">${esc(c.name)}</div>
+                <div class="autocomplete-phone">${c.phone?'📱 '+esc(c.phone):'Sin telefono'}</div>
+                <div class="autocomplete-events">${c.count} evento${c.count>1?'s':''}</div>
+            </div>`
+        ).join('');
+        dropdown.classList.add('visible');
+    }
+
+    function qqSelectClient(name, phone) {
+        document.getElementById('qqName').value = name;
+        if (phone) document.getElementById('qqPhone').value = phone;
+        document.getElementById('qqAutocomplete').classList.remove('visible');
+    }
+
+    function qqCreateAndSend() {
+        const clientName = document.getElementById('qqName').value.trim();
+        const clientPhone = document.getElementById('qqPhone').value.trim();
+        const eventDate = document.getElementById('qqDate').value;
+        const pkgKey = document.getElementById('qqPaquete').value;
+
+        if (!clientName) { showToast('Falta el nombre del cliente', 'warning'); return; }
+        if (!clientPhone) { showToast('Falta el WhatsApp del cliente', 'warning'); return; }
+        if (!eventDate) { showToast('Falta la fecha', 'warning'); return; }
+        if (!pkgKey) { showToast('Elige un paquete', 'warning'); return; }
+        if (!qqSelectedGuests) { showToast('Elige el número de invitados', 'warning'); return; }
+
+        const pkg = CATALOG[pkgKey];
+        const tier = pkg.tiers.find(t => t.guests === qqSelectedGuests);
+        if (!tier) { showToast('Tier no encontrado', 'error'); return; }
+
+        const isFixed = !!tier.fixed;
+        const total = isFixed ? tier.fixed : (tier.price * tier.guests);
+
+        // Build line items
+        const lineItems = [
+            {
+                description: pkg.name + ' ' + tier.guests + 'pers',
+                unitPrice: isFixed ? total : tier.price,
+                quantity: isFixed ? 1 : tier.guests,
+                note: tier.note
+            },
+            {
+                description: 'Transporte montaje y desmontaje',
+                unitPrice: 0,
+                quantity: 1,
+                note: ''
+            }
+        ];
+
+        // Create event
+        const event = {
+            id: 'local_' + Date.now(),
+            clientName,
+            clientPhone,
+            eventDate,
+            venue: '',
+            guestCount: qqSelectedGuests,
+            services: [pkgKey === 'fromage' ? 'quesos' : pkgKey === 'sugar' ? 'mesa_dulces' : 'mesa_dulces'],
+            serviceDetails: {},
+            totalPrice: total,
+            netAmount: total,
+            hasPlanner: false,
+            plannerName: '',
+            commissionRate: 0,
+            commission: 0,
+            commissionPaid: false,
+            notes: 'Cotización enviada por WhatsApp el ' + new Date().toISOString().split('T')[0],
+            status: 'pending',
+            payments: [],
+            photos: [],
+            lineItems,
+            quoteSentAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+        };
+
+        appData.events.push(event);
+        saveData();
+        saveEventToFirebase(event);
+
+        // Open WhatsApp with quote message
+        const servicesText = lineItems.filter(li => li.unitPrice > 0).map(li =>
+            `• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`
+        ).join('\n');
+
+        const msg = `Hola ${clientName}! 🥐\n\nGracias por contactarnos! Aquí va tu cotización para ${qqSelectedGuests} invitados:\n\n${pkg.icon} ${pkg.name}\n${tier.note}\n\n${servicesText}\n\n💰 Total: ${formatCurrency(total)}\n\n📋 Incluye: ${pkg.includes}\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\n⭐ Nuestras reseñas: bodas.com.mx/pasteles-para-boda/la-petite-parisienne--e352881/opiniones\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+
+        waOpenChat(clientPhone, msg);
+
+        // Reset form
+        document.getElementById('qqName').value = '';
+        document.getElementById('qqPhone').value = '';
+        document.getElementById('qqPaquete').value = '';
+        document.querySelectorAll('#qqGuestBtns .pay-method-btn').forEach(b => b.classList.remove('active'));
+        qqSelectedGuests = null;
+        document.getElementById('qqPreview').style.display = 'none';
+
+        showToast('✅ Cotización guardada y enviada por WhatsApp', 'success', 4000);
+        // Go back to main menu after a short delay
+        setTimeout(() => goToMainMenu(), 800);
     }
 
     // ==================== CALENDAR VIEW ====================

@@ -431,6 +431,37 @@
         .myday-amount { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 700; color: var(--success); text-align: center; margin: 8px 0; }
         .myday-amount-label { font-size: 0.8rem; color: var(--text-medium); text-align: center; }
 
+        /* ============ CALENDAR VIEW ============ */
+        .cal-container { background: var(--bg-white); border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 15px var(--shadow); border: 1px solid var(--border); }
+        .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .cal-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--text-dark); text-transform: capitalize; }
+        .cal-nav-btn { background: var(--bg-cream); border: 1px solid var(--border); width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; color: var(--text-dark); display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .cal-nav-btn:hover { background: var(--primary-light); }
+        .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+        .cal-weekday { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--text-medium); text-transform: uppercase; padding: 4px 0; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .cal-cell { aspect-ratio: 1; background: var(--bg-cream); border-radius: 8px; padding: 4px; display: flex; flex-direction: column; min-height: 44px; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; position: relative; overflow: hidden; }
+        .cal-cell:hover { background: var(--primary-light); }
+        .cal-cell.empty { background: transparent; cursor: default; }
+        .cal-cell.empty:hover { background: transparent; }
+        .cal-cell.today { border-color: var(--primary); background: var(--primary-light); font-weight: 700; }
+        .cal-cell.has-events { background: linear-gradient(135deg, #e8f4fd 0%, #d4eafd 100%); border-color: #b8d4e8; }
+        .cal-cell.has-events.today { background: linear-gradient(135deg, var(--primary-light) 0%, #d4eafd 100%); }
+        .cal-day-num { font-size: 0.75rem; font-weight: 600; color: var(--text-dark); line-height: 1; margin-bottom: 2px; }
+        .cal-event-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin: 1px; }
+        .cal-event-dot.paid { background: var(--success); }
+        .cal-event-dot.partial { background: var(--primary); }
+        .cal-event-dot.pending { background: var(--warning); }
+        .cal-event-mini { font-size: 0.6rem; color: var(--text-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; margin-top: 1px; padding: 1px 3px; background: rgba(255,255,255,0.7); border-radius: 3px; }
+        .cal-event-count { font-size: 0.65rem; color: var(--text-medium); margin-top: 2px; }
+        @media (min-width: 600px) {
+            .cal-cell { min-height: 70px; }
+            .cal-day-num { font-size: 0.85rem; }
+            .cal-event-mini { font-size: 0.7rem; }
+        }
+        .cal-legend { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--text-medium); }
+        .cal-legend-item { display: flex; align-items: center; gap: 4px; }
+
         /* ============ STAR RATING ============ */
         .rating-stars { display: inline-flex; gap: 2px; }
         .rating-star { font-size: 1.4rem; cursor: pointer; transition: transform 0.15s; filter: grayscale(1); opacity: 0.4; }
@@ -508,8 +539,9 @@
             <!-- Quick Actions (compact) -->
             <div class="menu-section" style="margin-top:8px;">
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button class="nav-btn primary" onclick="showSection('newEvent')" style="flex:1;min-width:140px;justify-content:center;">✨ Nuevo Evento</button>
-                    <button class="nav-btn secondary" onclick="showSection('pendingPayments')" style="flex:1;min-width:140px;justify-content:center;position:relative;">💳 Pagos <span class="pending-pay-badge" id="pendingPayBadge" style="display:none;"></span></button>
+                    <button class="nav-btn primary" onclick="showSection('newEvent')" style="flex:1;min-width:120px;justify-content:center;">✨ Nuevo</button>
+                    <button class="nav-btn secondary" onclick="showSection('calendar')" style="flex:1;min-width:120px;justify-content:center;">📅 Calendario</button>
+                    <button class="nav-btn secondary" onclick="showSection('pendingPayments')" style="flex:1;min-width:120px;justify-content:center;position:relative;">💳 Pagos <span class="pending-pay-badge" id="pendingPayBadge" style="display:none;"></span></button>
                 </div>
             </div>
 
@@ -670,6 +702,28 @@
         <!-- SECTION: Detalle de Evento -->
         <section id="eventDetail" class="section"><div id="eventDetailContent"></div></section>
 
+        <!-- SECTION: Vista Calendario -->
+        <section id="calendar" class="section">
+            <div class="cal-container">
+                <div class="cal-header">
+                    <button class="cal-nav-btn" onclick="changeCalMonth(-1)">←</button>
+                    <div class="cal-title" id="calMonthTitle">Enero 2025</div>
+                    <button class="cal-nav-btn" onclick="changeCalMonth(1)">→</button>
+                </div>
+                <div class="cal-weekdays">
+                    <div class="cal-weekday">Lun</div><div class="cal-weekday">Mar</div><div class="cal-weekday">Mié</div><div class="cal-weekday">Jue</div><div class="cal-weekday">Vie</div><div class="cal-weekday">Sáb</div><div class="cal-weekday">Dom</div>
+                </div>
+                <div class="cal-grid" id="calGrid"></div>
+                <div class="cal-legend">
+                    <div class="cal-legend-item"><span class="cal-event-dot paid"></span>Pagado</div>
+                    <div class="cal-legend-item"><span class="cal-event-dot partial"></span>Anticipo</div>
+                    <div class="cal-legend-item"><span class="cal-event-dot pending"></span>Pendiente</div>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="exportAllEventsToIcs()" style="margin-bottom:10px;padding:14px;background:linear-gradient(135deg,#e8f4fd 0%,#d4eafd 100%);border-color:#b8d4e8;color:#2c5282;">📅 Exportar todos a Zinia / Google Cal</button>
+            <button class="btn btn-secondary" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
         <!-- SECTION: Dashboard -->
         <section id="dashboard" class="section">
             <div class="month-selector"><button class="month-nav" onclick="changeMonth(-1)">←</button><span class="month-display" id="monthDisplay">Enero 2025</span><button class="month-nav" onclick="changeMonth(1)">→</button></div>
@@ -770,6 +824,7 @@
         <button class="bottom-nav-item active" onclick="goToMainMenu()" data-section="mainMenu"><span class="bottom-nav-icon">🏠</span><span class="bottom-nav-label">Inicio</span></button>
         <button class="bottom-nav-item" onclick="showSection('newEvent')" data-section="newEvent"><span class="bottom-nav-icon">✨</span><span class="bottom-nav-label">Nuevo</span></button>
         <button class="bottom-nav-item" onclick="showSection('events')" data-section="events"><span class="bottom-nav-icon">📋</span><span class="bottom-nav-label">Eventos</span></button>
+        <button class="bottom-nav-item" onclick="showSection('calendar')" data-section="calendar"><span class="bottom-nav-icon">📅</span><span class="bottom-nav-label">Cal</span></button>
         <button class="bottom-nav-item" onclick="showSection('dashboard')" data-section="dashboard"><span class="bottom-nav-icon">📊</span><span class="bottom-nav-label">Stats</span></button>
         <button class="bottom-nav-item" onclick="showSection('expenses')" data-section="expenses"><span class="bottom-nav-icon">💸</span><span class="bottom-nav-label">Gastos</span></button>
     </nav>
@@ -1195,6 +1250,7 @@
         else if (sectionId==='dashboard') { updateDashboard(); setTimeout(renderChart,200); }
         else if (sectionId==='expenses') renderExpenses();
         else if (sectionId==='templates') renderTemplates();
+        else if (sectionId==='calendar') renderCalendar();
         else if (sectionId==='pendingPayments') {
             renderPendingPayments();
             const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=new Date().toISOString().split('T')[0];
@@ -1788,6 +1844,7 @@
                 <button class="btn btn-primary" onclick="generatePDF('devis')" style="flex:1;padding:12px;">📄 Cotización PDF</button>
                 <button class="btn btn-success" onclick="generatePDF('nota')" style="flex:1;padding:12px;">🧾 Nota de Venta PDF</button>
             </div>
+            <button class="btn btn-secondary" onclick="exportEventToIcs('${esc(ev.id)}')" style="margin-bottom:10px;padding:12px;background:linear-gradient(135deg,#e8f4fd 0%,#d4eafd 100%);border-color:#b8d4e8;color:#2c5282;">📅 Añadir a Zinia / Google Calendar</button>
             <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="margin-bottom:10px;padding:10px;font-size:0.85rem;" id="loadTemplateBtn">🖼️ ${pdfTemplateImg?'✅ Cambiar':'Cargar'} Template PDF</button>
             <button class="btn btn-secondary" onclick="saveAsTemplate('${esc(ev.id)}')" style="margin-bottom:10px;">📑 Guardar como Template</button>
             ${ev.clientPhone?`<div class="card" style="background:linear-gradient(135deg,#e8f8e8 0%,#d4f0d4 100%);border:2px solid #25D366;">
@@ -3292,6 +3349,237 @@
         msg += `\n📊 MES: ${mEvs.length} eventos — ${formatCurrency(rev)}`;
 
         waOpenChat(MY_PHONE, msg);
+    }
+
+    // ==================== CALENDAR VIEW ====================
+    let calYear = new Date().getFullYear();
+    let calMonth = new Date().getMonth();
+
+    function changeCalMonth(delta) {
+        calMonth += delta;
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        else if (calMonth < 0) { calMonth = 11; calYear--; }
+        renderCalendar();
+    }
+
+    function renderCalendar() {
+        const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const titleEl = document.getElementById('calMonthTitle');
+        if (titleEl) titleEl.textContent = months[calMonth] + ' ' + calYear;
+
+        const grid = document.getElementById('calGrid');
+        if (!grid) return;
+
+        // First day of month - shift so Monday = 0
+        const first = new Date(calYear, calMonth, 1);
+        let firstWeekday = first.getDay() - 1;
+        if (firstWeekday < 0) firstWeekday = 6;
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+        // Index events by day
+        const eventsByDay = {};
+        appData.events.forEach(ev => {
+            const d = new Date(ev.eventDate + 'T00:00:00');
+            if (d.getMonth() === calMonth && d.getFullYear() === calYear) {
+                const day = d.getDate();
+                if (!eventsByDay[day]) eventsByDay[day] = [];
+                eventsByDay[day].push(ev);
+            }
+        });
+
+        const today = new Date();
+        const isCurrentMonth = today.getMonth() === calMonth && today.getFullYear() === calYear;
+        const todayDay = today.getDate();
+
+        let html = '';
+        // Empty cells before day 1
+        for (let i = 0; i < firstWeekday; i++) html += '<div class="cal-cell empty"></div>';
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const evs = eventsByDay[day] || [];
+            const isToday = isCurrentMonth && day === todayDay;
+            const classes = ['cal-cell'];
+            if (isToday) classes.push('today');
+            if (evs.length > 0) classes.push('has-events');
+
+            const clickAction = evs.length === 1
+                ? `showEventDetail('${esc(evs[0].id)}')`
+                : evs.length > 1
+                    ? `showCalDayEvents(${day})`
+                    : '';
+
+            let content = `<div class="cal-day-num">${day}</div>`;
+            if (evs.length === 1) {
+                content += `<div class="cal-event-mini">${esc(evs[0].clientName)}</div>`;
+                content += `<div><span class="cal-event-dot ${evs[0].status||'pending'}"></span></div>`;
+            } else if (evs.length > 1) {
+                const dots = evs.slice(0,5).map(e => `<span class="cal-event-dot ${e.status||'pending'}"></span>`).join('');
+                content += `<div>${dots}</div>`;
+                content += `<div class="cal-event-count">${evs.length} eventos</div>`;
+            }
+
+            html += `<div class="${classes.join(' ')}" ${clickAction?`onclick="${clickAction}"`:''}>${content}</div>`;
+        }
+
+        grid.innerHTML = html;
+    }
+
+    function showCalDayEvents(day) {
+        const evs = appData.events.filter(ev => {
+            const d = new Date(ev.eventDate + 'T00:00:00');
+            return d.getMonth() === calMonth && d.getFullYear() === calYear && d.getDate() === day;
+        });
+        if (evs.length === 0) return;
+        if (evs.length === 1) { showEventDetail(evs[0].id); return; }
+
+        const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+        const modal = document.getElementById('confirmModal');
+        modal.style.display = 'block';
+        const items = evs.map(ev => {
+            const sb = {pending:'badge-pending',partial:'badge-partial',paid:'badge-paid'}[ev.status]||'badge-pending';
+            const sbT = {pending:'Pendiente',partial:'Anticipo',paid:'Pagado'}[ev.status]||'Pendiente';
+            return `<div class="event-item" onclick="closeConfirm();showEventDetail('${esc(ev.id)}')" style="margin-bottom:6px;">
+                <div class="event-icon">📋</div>
+                <div class="event-details"><div class="event-name">${esc(ev.clientName)}</div><div class="event-date">${esc(ev.venue||'')}</div></div>
+                <div class="event-amount"><div class="event-total">${formatCurrency(ev.totalPrice)}</div><span class="card-badge ${sb}">${sbT}</span></div>
+            </div>`;
+        }).join('');
+        modal.innerHTML = `<div class="confirm-backdrop" onclick="closeConfirm()">
+            <div class="confirm-box" style="max-width:420px;text-align:left;" onclick="event.stopPropagation()">
+                <div class="confirm-title">${day} de ${months[calMonth]} — ${evs.length} eventos</div>
+                <div style="margin:16px 0;">${items}</div>
+                <button class="btn btn-secondary" onclick="closeConfirm()">Cerrar</button>
+            </div>
+        </div>`;
+    }
+
+    // ==================== ICAL EXPORT ====================
+    function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function formatICalDate(dateStr) {
+        // YYYY-MM-DD → YYYYMMDD
+        return dateStr.replace(/-/g,'');
+    }
+
+    function escapeICalText(t) {
+        return String(t||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+    }
+
+    function exportEventToIcs(eventId) {
+        const ev = appData.events.find(e => e.id === eventId); if (!ev) return;
+        const dtStart = formatICalDate(ev.eventDate);
+        // All-day events: DTEND should be the next day
+        const d = new Date(ev.eventDate + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        const dtEnd = d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate());
+        const now = new Date();
+        const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds()) + 'Z';
+        const uid = 'lpp-' + ev.id + '@lapetiteparisienne';
+
+        const services = (ev.services||[]).join(', ');
+        const paid = (ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+        const remaining = Math.max(0, ev.totalPrice - paid);
+        const desc = [
+            'Cliente: ' + (ev.clientName||''),
+            ev.clientPhone ? 'WhatsApp: ' + ev.clientPhone : '',
+            'Invitados: ' + (ev.guestCount||'-'),
+            services ? 'Servicios: ' + services : '',
+            'Total: ' + formatCurrency(ev.totalPrice),
+            'Pagado: ' + formatCurrency(paid),
+            remaining>0 ? 'Resta: ' + formatCurrency(remaining) : 'Pagado completo',
+            ev.notes ? '\\nNotas: ' + ev.notes : ''
+        ].filter(Boolean).join('\\n');
+
+        const ics = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//La Petite Parisienne//Events//ES',
+            'CALSCALE:GREGORIAN',
+            'METHOD:PUBLISH',
+            'BEGIN:VEVENT',
+            'UID:' + uid,
+            'DTSTAMP:' + dtStamp,
+            'DTSTART;VALUE=DATE:' + dtStart,
+            'DTEND;VALUE=DATE:' + dtEnd,
+            'SUMMARY:' + escapeICalText('🥐 ' + (ev.clientName||'Evento') + (ev.guestCount?' ('+ev.guestCount+'p)':'')),
+            'DESCRIPTION:' + escapeICalText(desc),
+            'LOCATION:' + escapeICalText(ev.venue||''),
+            'BEGIN:VALARM',
+            'TRIGGER:-P1D',
+            'ACTION:DISPLAY',
+            'DESCRIPTION:' + escapeICalText('Evento mañana: ' + (ev.clientName||'')),
+            'END:VALARM',
+            'END:VEVENT',
+            'END:VCALENDAR'
+        ].join('\r\n');
+
+        const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'evento-' + (ev.clientName||'evento').replace(/[^a-zA-Z0-9]/g,'_') + '-' + ev.eventDate + '.ics';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('📅 Archivo .ics descargado — abrelo para agregarlo a Zinia/Google Cal', 'success', 4000);
+    }
+
+    function exportAllEventsToIcs() {
+        const upcoming = appData.events.filter(e => {
+            const d = new Date(e.eventDate + 'T00:00:00');
+            const today = new Date(); today.setHours(0,0,0,0);
+            return d >= today;
+        });
+        if (upcoming.length === 0) { showToast('Sin eventos futuros', 'warning'); return; }
+
+        let icsBody = '';
+        const now = new Date();
+        const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds()) + 'Z';
+
+        upcoming.forEach(ev => {
+            const dtStart = formatICalDate(ev.eventDate);
+            const d = new Date(ev.eventDate + 'T00:00:00');
+            d.setDate(d.getDate() + 1);
+            const dtEnd = d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate());
+            const services = (ev.services||[]).join(', ');
+            const paid = (ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+            const remaining = Math.max(0, ev.totalPrice - paid);
+            const desc = [
+                'Cliente: ' + (ev.clientName||''),
+                ev.clientPhone ? 'WhatsApp: ' + ev.clientPhone : '',
+                'Invitados: ' + (ev.guestCount||'-'),
+                services ? 'Servicios: ' + services : '',
+                'Total: ' + formatCurrency(ev.totalPrice),
+                'Pagado: ' + formatCurrency(paid),
+                remaining>0 ? 'Resta: ' + formatCurrency(remaining) : 'Pagado completo'
+            ].filter(Boolean).join('\\n');
+
+            icsBody += [
+                'BEGIN:VEVENT',
+                'UID:lpp-' + ev.id + '@lapetiteparisienne',
+                'DTSTAMP:' + dtStamp,
+                'DTSTART;VALUE=DATE:' + dtStart,
+                'DTEND;VALUE=DATE:' + dtEnd,
+                'SUMMARY:' + escapeICalText('🥐 ' + (ev.clientName||'Evento') + (ev.guestCount?' ('+ev.guestCount+'p)':'')),
+                'DESCRIPTION:' + escapeICalText(desc),
+                'LOCATION:' + escapeICalText(ev.venue||''),
+                'END:VEVENT'
+            ].join('\r\n') + '\r\n';
+        });
+
+        const ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//La Petite Parisienne//Events//ES\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n' + icsBody + 'END:VCALENDAR';
+
+        const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'la-petite-parisienne-eventos.ics';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('📅 ' + upcoming.length + ' eventos exportados — importa el archivo en Zinia/Google Cal', 'success', 4000);
     }
 
     // ==================== DUPLICATE EVENT ====================

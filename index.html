@@ -544,6 +544,7 @@
                     <button class="nav-btn primary" onclick="showSection('newEvent')" style="flex:1;min-width:120px;justify-content:center;">✨ Nuevo</button>
                     <button class="nav-btn secondary" onclick="showSection('calendar')" style="flex:1;min-width:120px;justify-content:center;">📅 Calendario</button>
                     <button class="nav-btn secondary" onclick="showSection('pendingPayments')" style="flex:1;min-width:120px;justify-content:center;position:relative;">💳 Pagos <span class="pending-pay-badge" id="pendingPayBadge" style="display:none;"></span></button>
+                    <button class="nav-btn secondary" onclick="showSection('investments')" style="flex:1;min-width:120px;justify-content:center;">💰 Inversión</button>
                 </div>
             </div>
 
@@ -751,6 +752,17 @@
                     <div class="resico-item"><div class="resico-item-label">Utilidad Neta</div><div class="resico-item-value net" id="dashNetProfit">$0</div></div>
                 </div>
             </div>
+            <div class="card resico-card" style="background:linear-gradient(135deg,#eef3fb 0%,#e3ecf7 100%);border-color:#bcd0ea;">
+                <div class="resico-header"><span class="resico-badge" style="background:#5b8fd6;">INVERSIÓN</span><h3 class="resico-title">Para Invertir este Mes</h3></div>
+                <div class="info-box"><span class="info-box-icon">💡</span> <span id="dashInvPctLabel">25%</span> del precio total de cada evento, repartido entre CETES y cajita Nu. <span style="font-weight:700;">Tú haces la transferencia.</span></div>
+                <div class="resico-info">
+                    <div class="resico-item"><div class="resico-item-label">Total a Invertir</div><div class="resico-item-value" id="dashInvTotal" style="color:#5b8fd6;">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">📈 CETES</div><div class="resico-item-value" id="dashInvCetes" style="color:#5b8fd6;">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">🟣 Cajita Nu</div><div class="resico-item-value" id="dashInvNu" style="color:#820ad1;">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">✅ Ya Invertido</div><div class="resico-item-value net" id="dashInvDone">$0</div></div>
+                </div>
+                <button class="btn btn-secondary" style="margin-top:12px;" onclick="showSection('investments')">💰 Gestionar Inversiones →</button>
+            </div>
             <div class="card"><div class="card-header"><h3 class="card-title">🤝 Comisiones del Mes</h3></div><div id="commissionSummary"></div></div>
             <button class="btn btn-whatsapp" onclick="sendMonthlyReport()">📱 Enviar Reporte por WhatsApp</button>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
@@ -880,6 +892,38 @@
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
         </section>
 
+        <!-- SECTION: Inversiones -->
+        <section id="investments" class="section">
+            <div class="card resico-card" style="background:linear-gradient(135deg,#eef3fb 0%,#e3ecf7 100%);border-color:#bcd0ea;">
+                <div class="resico-header"><span class="resico-badge" style="background:#5b8fd6;">INVERSIÓN</span><h3 class="resico-title">Mi Ahorro Invertido</h3></div>
+                <div class="resico-info">
+                    <div class="resico-item"><div class="resico-item-label">Total Invertido</div><div class="resico-item-value net" id="invCumTotal">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">📈 En CETES</div><div class="resico-item-value" id="invCumCetes" style="color:#5b8fd6;">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">🟣 En Cajita Nu</div><div class="resico-item-value" id="invCumNu" style="color:#820ad1;">$0</div></div>
+                    <div class="resico-item"><div class="resico-item-label">Eventos</div><div class="resico-item-value" id="invCumCount">0</div></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">💸 Por Invertir</h3><span class="card-badge badge-pending" id="invPendBadge">$0</span></div>
+                <div class="info-box"><span class="info-box-icon">💡</span> Cuando hagas la transferencia a <strong>CETES</strong> (cetesdirecto) y a tu <strong>cajita Nu</strong>, marca el evento como invertido.</div>
+                <div id="invPendingList"></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">✅ Historial</h3></div>
+                <div id="invHistoryList"></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">⚙️ Ajustes</h3></div>
+                <div style="display:flex;gap:8px;">
+                    <div style="flex:1;"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">% a invertir</label><input type="number" class="form-input" id="invSetPct" style="padding:12px;" min="0" max="100"></div>
+                    <div style="flex:1;"><label class="form-label" style="font-size:0.8rem;margin-bottom:4px;">% en CETES</label><input type="number" class="form-input" id="invSetCetes" style="padding:12px;" min="0" max="100"></div>
+                </div>
+                <p style="font-size:0.78rem;color:var(--text-medium);margin:8px 0 12px;" id="invSetHint">El resto va a la cajita Nu.</p>
+                <button class="btn btn-primary" onclick="saveInvestSettings()" style="width:100%;">💾 Guardar Ajustes</button>
+            </div>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
         <!-- SECTION: Service Form -->
         <section id="serviceForm" class="section"><div id="serviceFormContent"></div></section>
     </main>
@@ -1001,7 +1045,7 @@
     let revenueChart = null;
 
     // ==================== DATA STORAGE ====================
-    let appData = { events: [], expenses: [], settings: { defaultResicoRate: 2.5 } };
+    let appData = { events: [], expenses: [], settings: { defaultResicoRate: 2.5, investPercent: 25, investSplitCetes: 50 } };
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
     let expenseMonth = new Date().getMonth();
@@ -1323,6 +1367,7 @@
             renderPendingPayments();
             const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=new Date().toISOString().split('T')[0];
         }
+        else if (sectionId==='investments') renderInvestments();
         computeNotifications();
         window.scrollTo(0,0);
     }
@@ -2046,6 +2091,20 @@
         const dlEl=document.getElementById('dashResicoDeadline');
         if(dlEl) dlEl.textContent='Pagar antes del 17 de '+ms[dlMonth]+' '+dlYear+'.';
 
+        // Inversión del mes (base = precio total de los eventos del mes)
+        let invTotal=0, invCetes=0, invNu=0, invDone=0;
+        mEvs.forEach(e=>{
+            const inv=computeInvestment(e.totalPrice||0);
+            invTotal+=inv.total; invCetes+=inv.cetes; invNu+=inv.nu;
+            if(e.invested) invDone+=(e.investedCetes||0)+(e.investedNu||0);
+        });
+        const _ic=getInvestCfg();
+        const _ipl=document.getElementById('dashInvPctLabel'); if(_ipl) _ipl.textContent=_ic.pct+'%';
+        const _it=document.getElementById('dashInvTotal'); if(_it) _it.textContent=formatCurrency(invTotal);
+        const _icz=document.getElementById('dashInvCetes'); if(_icz) _icz.textContent=formatCurrency(invCetes);
+        const _inu=document.getElementById('dashInvNu'); if(_inu) _inu.textContent=formatCurrency(invNu);
+        const _idn=document.getElementById('dashInvDone'); if(_idn) _idn.textContent=formatCurrency(invDone);
+
         // Extra stats
         const avgVal=mEvs.length>0?totalRev/mEvs.length:0;
         const paidCount=mEvs.filter(e=>e.status==='paid').length;
@@ -2090,6 +2149,117 @@
         revenueChart=new Chart(canvas,{type:'bar',data:{labels:ms,datasets:[{label:currentYear+'',data:data,backgroundColor:'rgba(212,165,116,0.7)',borderColor:'#d4a574',borderWidth:2,borderRadius:6},{label:(currentYear-1)+'',data:prevData,backgroundColor:'rgba(139,115,85,0.3)',borderColor:'#8b7355',borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{family:'Nunito'}}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()}},x:{ticks:{font:{family:'Nunito'}}}}}});
     }
 
+    // ==================== INVERSIONES ====================
+    // Lee la config con valores por defecto (compatible con datos antiguos)
+    function getInvestCfg() {
+        const s = appData.settings || {};
+        let pct = parseFloat(s.investPercent); if(!isFinite(pct)||pct<0||pct>100) pct = 25;
+        let cetes = parseFloat(s.investSplitCetes); if(!isFinite(cetes)||cetes<0||cetes>100) cetes = 50;
+        return { pct, cetesPct: cetes, nuPct: 100 - cetes };
+    }
+    // Calcula cuánto invertir a partir de un monto (precio total del evento)
+    function computeInvestment(amount) {
+        const c = getInvestCfg();
+        const total = (amount||0) * c.pct / 100;
+        const cetes = total * c.cetesPct / 100;
+        return { total, cetes, nu: total - cetes };
+    }
+    // Marca / desmarca un evento como invertido (congela los montos al marcar)
+    function toggleInvested(eventId) {
+        if(_savingEvent) return; _savingEvent = true;
+        const ev = appData.events.find(e=>e.id===eventId);
+        if(!ev){ _savingEvent = false; return; }
+        if(ev.invested){
+            ev.invested = false;
+            delete ev.investedCetes; delete ev.investedNu; delete ev.investedDate;
+            showToast('Marcado como NO invertido','info');
+        } else {
+            const inv = computeInvestment(ev.totalPrice||0);
+            ev.invested = true;
+            ev.investedCetes = inv.cetes;
+            ev.investedNu = inv.nu;
+            ev.investedDate = new Date().toISOString().split('T')[0];
+            showToast('✅ Inversión registrada','success');
+        }
+        saveData();
+        saveEventToFirebase(ev).finally(()=>{ _savingEvent = false; });
+        const dashEl = document.getElementById('dashboard');
+        if(dashEl && dashEl.classList.contains('active')) updateDashboard();
+        const invEl = document.getElementById('investments');
+        if(invEl && invEl.classList.contains('active')) renderInvestments();
+        computeNotifications();
+    }
+    function renderInvestments() {
+        const cfg = getInvestCfg();
+        const sp=document.getElementById('invSetPct'); if(sp) sp.value=cfg.pct;
+        const sc=document.getElementById('invSetCetes'); if(sc) sc.value=cfg.cetesPct;
+        const sh=document.getElementById('invSetHint'); if(sh) sh.textContent=`De cada evento se invierte ${cfg.pct}% del precio total: ${cfg.cetesPct}% en CETES y ${cfg.nuPct}% en cajita Nu.`;
+        // Cumulativo (suma de eventos ya invertidos)
+        let cumC=0,cumN=0,cumCount=0;
+        appData.events.forEach(e=>{ if(e.invested){ cumC+=(e.investedCetes||0); cumN+=(e.investedNu||0); cumCount++; } });
+        document.getElementById('invCumTotal').textContent=formatCurrency(cumC+cumN);
+        document.getElementById('invCumCetes').textContent=formatCurrency(cumC);
+        document.getElementById('invCumNu').textContent=formatCurrency(cumN);
+        document.getElementById('invCumCount').textContent=cumCount;
+        // Por invertir (no invertidos, con monto > 0), evento más reciente primero
+        const pend=appData.events.filter(e=>!e.invested && computeInvestment(e.totalPrice||0).total>0)
+            .sort((a,b)=>(b.eventDate||'').localeCompare(a.eventDate||''));
+        let pendTotal=0;
+        const pl=document.getElementById('invPendingList');
+        if(pend.length===0){ pl.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-medium);">Nada por invertir 🎉</div>'; }
+        else {
+            pl.innerHTML=pend.map(e=>{
+                const inv=computeInvestment(e.totalPrice||0); pendTotal+=inv.total;
+                const notPaid = e.status!=='paid';
+                return `<div class="expense-item" style="flex-wrap:wrap;gap:8px;">
+                    <div class="expense-info" style="flex:1;min-width:150px;">
+                        <div class="expense-desc">${esc(e.clientName||'Sin nombre')}${notPaid?' <span style="font-size:0.7rem;color:var(--warning);font-weight:600;">• aún no cobrado</span>':''}</div>
+                        <div style="font-size:0.78rem;color:var(--text-medium);">${formatDate(e.eventDate)} · Total ${formatCurrency(e.totalPrice||0)}</div>
+                        <div style="font-size:0.8rem;margin-top:2px;">📈 CETES ${formatCurrency(inv.cetes)} · 🟣 Nu ${formatCurrency(inv.nu)}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-weight:700;color:#5b8fd6;">${formatCurrency(inv.total)}</span>
+                        <button class="btn btn-success" style="padding:8px 12px;font-size:0.8rem;white-space:nowrap;" onclick="toggleInvested('${esc(e.id)}')">✓ Invertido</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        const pb=document.getElementById('invPendBadge'); if(pb) pb.textContent=formatCurrency(pendTotal);
+        // Historial (ya invertidos), fecha de inversión más reciente primero
+        const hist=appData.events.filter(e=>e.invested).sort((a,b)=>(b.investedDate||'').localeCompare(a.investedDate||''));
+        const hl=document.getElementById('invHistoryList');
+        if(hist.length===0){ hl.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-medium);">Sin inversiones aún</div>'; }
+        else {
+            hl.innerHTML=hist.map(e=>{
+                const t=(e.investedCetes||0)+(e.investedNu||0);
+                return `<div class="expense-item" style="flex-wrap:wrap;gap:8px;">
+                    <div class="expense-info" style="flex:1;min-width:150px;">
+                        <div class="expense-desc">✅ ${esc(e.clientName||'Sin nombre')}</div>
+                        <div style="font-size:0.78rem;color:var(--text-medium);">${formatDate(e.investedDate)} · 📈 ${formatCurrency(e.investedCetes||0)} · 🟣 ${formatCurrency(e.investedNu||0)}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-weight:700;color:var(--success);">${formatCurrency(t)}</span>
+                        <button class="delete-btn" title="Deshacer" onclick="toggleInvested('${esc(e.id)}')">×</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+    function saveInvestSettings() {
+        let pct=parseFloat(document.getElementById('invSetPct').value);
+        let cetes=parseFloat(document.getElementById('invSetCetes').value);
+        if(!isFinite(pct)||pct<0||pct>100){ showToast('Porcentaje inválido (0-100)','error'); return; }
+        if(!isFinite(cetes)||cetes<0||cetes>100){ showToast('Reparto inválido (0-100)','error'); return; }
+        if(!appData.settings) appData.settings={};
+        appData.settings.investPercent=pct;
+        appData.settings.investSplitCetes=cetes;
+        saveData();
+        renderInvestments();
+        const dashEl = document.getElementById('dashboard');
+        if(dashEl && dashEl.classList.contains('active')) updateDashboard();
+        showToast('Ajustes guardados','success');
+    }
+
     // ==================== NOTIFICATIONS ====================
     function computeNotifications() {
         const dismissed=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');
@@ -2104,6 +2274,18 @@
             // Overdue payment
             if(diff<0&&ev.status!=='paid'){const id='overdue_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'warning',icon:'💰',title:'Pago pendiente: '+ev.clientName,sub:formatCurrency(ev.totalPrice),eventId:ev.id});}
         });
+        // Recordatorio de inversión: eventos cobrados (pagados) aún no invertidos
+        let pendInv=0, pendC=0, pendN=0;
+        appData.events.forEach(ev=>{
+            if(ev.status==='paid' && !ev.invested){
+                const inv=computeInvestment(ev.totalPrice||0);
+                if(inv.total>0){ pendInv+=inv.total; pendC+=inv.cetes; pendN+=inv.nu; }
+            }
+        });
+        if(pendInv>0){
+            const id='invest_'+Math.round(pendInv);
+            if(!dismissed.includes(id)) notifications.push({id,type:'warning',icon:'💰',title:'Por invertir: '+formatCurrency(pendInv),sub:'📈 CETES '+formatCurrency(pendC)+' · 🟣 Nu '+formatCurrency(pendN),eventId:''});
+        }
         // Update badge
         const badge=document.getElementById('notifBadge');
         if(badge){if(notifications.length>0){badge.style.display='flex';badge.textContent=notifications.length;}else{badge.style.display='none';}}
@@ -2118,7 +2300,7 @@
         } else { m.style.display='none'; }
     }
     function dismissNotif(id) { const d=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');d.push(id);localStorage.setItem('lpp_dismissed_notifs',JSON.stringify(d));computeNotifications();toggleNotifications();toggleNotifications(); }
-    function tapNotif(eid,nid) { dismissNotif(nid); document.getElementById('notifModal').style.display='none'; showEventDetail(eid); }
+    function tapNotif(eid,nid) { dismissNotif(nid); document.getElementById('notifModal').style.display='none'; if(eid) showEventDetail(eid); else showSection('investments'); }
 
     // ==================== TEMPLATES ====================
     function saveAsTemplate(eid) {

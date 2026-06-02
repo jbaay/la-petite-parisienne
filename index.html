@@ -904,6 +904,30 @@
                 </div>
             </div>
             <div class="card">
+                <div class="card-header"><h3 class="card-title">📊 Portafolio y Proyección</h3></div>
+                <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:12px;">Ajusta el saldo real de cada cuenta y su rendimiento anual estimado para ver tu crecimiento a largo plazo (interés compuesto).</p>
+                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                    <thead><tr style="text-align:left;color:var(--text-medium);font-size:0.78rem;"><th style="padding:6px 4px;">Cuenta</th><th style="padding:6px 4px;">Saldo actual</th><th style="padding:6px 4px;">Rend. anual</th></tr></thead>
+                    <tbody>
+                        <tr style="border-top:1px solid var(--border);"><td style="padding:8px 4px;font-weight:600;color:#5b8fd6;white-space:nowrap;">📈 CETES</td><td style="padding:8px 4px;"><input type="number" id="pfBalCetes" class="form-input" style="padding:8px;" min="0"></td><td style="padding:8px 4px;"><div style="display:flex;align-items:center;gap:4px;"><input type="number" id="pfRateCetes" class="form-input" style="padding:8px;width:72px;" step="0.1" min="0"><span>%</span></div></td></tr>
+                        <tr style="border-top:1px solid var(--border);"><td style="padding:8px 4px;font-weight:600;color:#820ad1;white-space:nowrap;">🟣 Cajita Nu</td><td style="padding:8px 4px;"><input type="number" id="pfBalNu" class="form-input" style="padding:8px;" min="0"></td><td style="padding:8px 4px;"><div style="display:flex;align-items:center;gap:4px;"><input type="number" id="pfRateNu" class="form-input" style="padding:8px;width:72px;" step="0.1" min="0"><span>%</span></div></td></tr>
+                    </tbody>
+                </table>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                    <button class="btn btn-secondary" style="flex:1;font-size:0.82rem;padding:10px;" onclick="usePortfolioTracked()">↻ Usar mi ahorro registrado</button>
+                    <button class="btn btn-primary" style="flex:1;font-size:0.82rem;padding:10px;" onclick="savePortfolio()">💾 Guardar</button>
+                </div>
+                <div style="margin-top:18px;">
+                    <div style="font-weight:700;margin-bottom:8px;">📅 Proyección (interés compuesto)</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                        <thead><tr style="color:var(--text-medium);font-size:0.75rem;"><th style="padding:6px 4px;text-align:left;">Plazo</th><th style="padding:6px 4px;text-align:right;">CETES</th><th style="padding:6px 4px;text-align:right;">Nu</th><th style="padding:6px 4px;text-align:right;">Total</th></tr></thead>
+                        <tbody id="pfProjBody"></tbody>
+                    </table>
+                    <div id="pfGainNote" style="font-size:0.8rem;color:var(--success);margin-top:8px;font-weight:600;"></div>
+                </div>
+                <div class="chart-container" style="margin-top:16px;"><canvas id="projChart"></canvas></div>
+            </div>
+            <div class="card">
                 <div class="card-header"><h3 class="card-title">💸 Por Invertir</h3><span class="card-badge badge-pending" id="invPendBadge">$0</span></div>
                 <div class="info-box"><span class="info-box-icon">💡</span> Cuando hagas la transferencia a <strong>CETES</strong> (cetesdirecto) y a tu <strong>cajita Nu</strong>, marca el evento como invertido.</div>
                 <div id="invPendingList"></div>
@@ -2244,6 +2268,7 @@
                 </div>`;
             }).join('');
         }
+        renderPortfolio();
     }
     function saveInvestSettings() {
         let pct=parseFloat(document.getElementById('invSetPct').value);
@@ -2258,6 +2283,78 @@
         const dashEl = document.getElementById('dashboard');
         if(dashEl && dashEl.classList.contains('active')) updateDashboard();
         showToast('Ajustes guardados','success');
+    }
+
+    // ---- Portafolio y proyección (largo plazo) ----
+    let projChart = null;
+    function getPortfolio() {
+        let cumC=0,cumN=0;
+        appData.events.forEach(e=>{ if(e.invested){ cumC+=(e.investedCetes||0); cumN+=(e.investedNu||0); } });
+        const s = appData.settings || {};
+        const balC = (s.investBalanceCetes!=null && isFinite(parseFloat(s.investBalanceCetes))) ? parseFloat(s.investBalanceCetes) : cumC;
+        const balN = (s.investBalanceNu!=null && isFinite(parseFloat(s.investBalanceNu))) ? parseFloat(s.investBalanceNu) : cumN;
+        let rC=parseFloat(s.investRateCetes); if(!isFinite(rC)||rC<0) rC=9;
+        let rN=parseFloat(s.investRateNu); if(!isFinite(rN)||rN<0) rN=12;
+        return { cumC, cumN, balC, balN, rateC:rC, rateN:rN };
+    }
+    function projVal(bal, rate, years) { return bal * Math.pow(1 + rate/100, years); }
+    function renderPortfolio() {
+        const p = getPortfolio();
+        const set=(id,v)=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
+        set('pfBalCetes', Math.round(p.balC));
+        set('pfBalNu', Math.round(p.balN));
+        set('pfRateCetes', p.rateC);
+        set('pfRateNu', p.rateN);
+        const horizons=[{l:'Hoy',y:0},{l:'1 año',y:1},{l:'5 años',y:5},{l:'10 años',y:10},{l:'20 años',y:20}];
+        const body=document.getElementById('pfProjBody');
+        if(body){
+            body.innerHTML=horizons.map(h=>{
+                const c=projVal(p.balC,p.rateC,h.y), n=projVal(p.balN,p.rateN,h.y), t=c+n;
+                const bold=h.y===0?'font-weight:700;':'';
+                return `<tr style="border-top:1px solid var(--border);text-align:right;${bold}"><td style="padding:7px 4px;text-align:left;">${h.l}</td><td style="padding:7px 4px;color:#5b8fd6;">${formatCurrency(c)}</td><td style="padding:7px 4px;color:#820ad1;">${formatCurrency(n)}</td><td style="padding:7px 4px;font-weight:700;">${formatCurrency(t)}</td></tr>`;
+            }).join('');
+        }
+        const gain=document.getElementById('pfGainNote');
+        if(gain){
+            const now=p.balC+p.balN;
+            const t10=projVal(p.balC,p.rateC,10)+projVal(p.balN,p.rateN,10);
+            gain.textContent = now>0 ? `📈 En 10 años: ${formatCurrency(t10)} (≈ ${formatCurrency(t10-now)} de intereses ganados)` : 'Ingresa tus saldos para ver la proyección.';
+        }
+        renderProjChart(p);
+    }
+    function renderProjChart(p) {
+        const canvas=document.getElementById('projChart');
+        if(!canvas || typeof Chart==='undefined') return;
+        if(projChart){ projChart.destroy(); projChart=null; }
+        const labels=[],cData=[],nData=[],tData=[];
+        for(let y=0;y<=20;y++){ const c=projVal(p.balC,p.rateC,y), n=projVal(p.balN,p.rateN,y); labels.push(y+''); cData.push(Math.round(c)); nData.push(Math.round(n)); tData.push(Math.round(c+n)); }
+        projChart=new Chart(canvas,{type:'line',data:{labels,datasets:[
+            {label:'Total',data:tData,borderColor:'#7cb87c',backgroundColor:'rgba(124,184,124,0.15)',borderWidth:3,fill:true,tension:0.3,pointRadius:0},
+            {label:'CETES',data:cData,borderColor:'#5b8fd6',borderWidth:2,fill:false,tension:0.3,pointRadius:0},
+            {label:'Nu',data:nData,borderColor:'#820ad1',borderWidth:2,fill:false,tension:0.3,pointRadius:0}
+        ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{family:'Nunito'}}},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+formatCurrency(ctx.parsed.y)}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()}},x:{title:{display:true,text:'Años'},ticks:{font:{family:'Nunito'}}}}}});
+    }
+    function savePortfolio() {
+        const bc=parseFloat(document.getElementById('pfBalCetes').value);
+        const bn=parseFloat(document.getElementById('pfBalNu').value);
+        const rc=parseFloat(document.getElementById('pfRateCetes').value);
+        const rn=parseFloat(document.getElementById('pfRateNu').value);
+        if(!isFinite(bc)||bc<0||!isFinite(bn)||bn<0){ showToast('Saldo inválido','error'); return; }
+        if(!isFinite(rc)||rc<0||rc>100||!isFinite(rn)||rn<0||rn>100){ showToast('Rendimiento inválido (0-100)','error'); return; }
+        if(!appData.settings) appData.settings={};
+        appData.settings.investBalanceCetes=bc;
+        appData.settings.investBalanceNu=bn;
+        appData.settings.investRateCetes=rc;
+        appData.settings.investRateNu=rn;
+        saveData();
+        renderPortfolio();
+        showToast('Portafolio actualizado','success');
+    }
+    function usePortfolioTracked() {
+        if(appData.settings){ delete appData.settings.investBalanceCetes; delete appData.settings.investBalanceNu; }
+        saveData();
+        renderPortfolio();
+        showToast('Saldos sincronizados con tu ahorro registrado','info');
     }
 
     // ==================== NOTIFICATIONS ====================

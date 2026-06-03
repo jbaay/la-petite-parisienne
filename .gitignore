@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Sensitive financial documents — NEVER commit real bank statements
+*.pdf
+
+# Photos / images (event pics, personal) — the app stores images in Firestore, not as files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.heic
+
+# OS / tooling artifacts
+nul
+.DS_Store
+Thumbs.db
+
+# Editor / agent local config
+.claude/
+
+# Subproject with its own tooling
+flemme-gym/

@@ -814,7 +814,7 @@
             <div class="card" style="border:2px dashed var(--primary);background:var(--primary-bg);">
                 <div style="text-align:center;padding:8px 0;">
                     <div style="font-size:1.3rem;font-weight:600;color:var(--primary);margin-bottom:4px;">🏦 Importar Estado de Cuenta</div>
-                    <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:10px;">Importa pagos recibidos desde tu PDF de HSBC. 100% local, tus datos nunca salen del navegador.</p>
+                    <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:10px;">Importa pagos recibidos y gastos desde tu PDF de HSBC. 100% local, tus datos nunca salen del navegador.</p>
                     <input type="file" id="bankPdfInput" accept=".pdf" style="display:none;" onchange="handleBankPdfSelect(this)">
                     <button class="btn btn-primary" onclick="document.getElementById('bankPdfInput').click()" style="padding:12px 24px;font-size:0.95rem;" id="bankImportBtn">📄 Seleccionar PDF</button>
                     <div id="bankImportProgress" style="display:none;margin-top:10px;">
@@ -977,8 +977,8 @@
         <div class="modal-backdrop" onclick="closeBankImportModal()"></div>
         <div class="modal-sheet" style="max-height:85vh;overflow-y:auto;">
             <div class="modal-handle"></div>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:8px;">🏦 Pagos Detectados</h3>
-            <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:4px;">Solo se importan nombre, fecha, concepto y monto. Ningun dato de cuenta bancaria.</p>
+            <h3 style="font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:8px;">🏦 Movimientos Detectados</h3>
+            <p style="font-size:0.8rem;color:var(--text-medium);margin-bottom:4px;">Ingresos → pagos, gastos → tu lista de gastos. Solo se importan fecha, concepto y monto. Ningun dato de cuenta bancaria.</p>
             <div id="bankImportSummary" style="margin-bottom:12px;"></div>
             <div style="display:flex;gap:8px;margin-bottom:10px;">
                 <button class="btn btn-secondary" onclick="toggleAllBankItems(true)" style="flex:1;padding:8px;font-size:0.8rem;">Seleccionar todos</button>
@@ -990,7 +990,7 @@
                     <span style="font-size:0.85rem;color:var(--text-medium);" id="bankImportCount">0 seleccionados</span>
                     <span style="font-size:1rem;font-weight:700;color:var(--primary);" id="bankImportTotal">$0</span>
                 </div>
-                <button class="btn btn-success" onclick="confirmBankImport()" style="padding:14px;width:100%;font-size:1rem;" id="bankImportConfirmBtn">Importar Pagos</button>
+                <button class="btn btn-success" onclick="confirmBankImport()" style="padding:14px;width:100%;font-size:1rem;" id="bankImportConfirmBtn">Importar</button>
             </div>
         </div>
     </div>
@@ -2785,6 +2785,20 @@
         return clean;
     }
 
+    // Clean an outgoing (cargo/retiro) description into a readable merchant/label for a gasto.
+    function cleanExpenseDescription(desc) {
+        let s = desc || '';
+        s = s.replace(/\s+\d{5,}\s*$/, '');                 // trailing reference digits
+        s = s.replace(/^\d{6,}/, '');                        // leading card auth/ref number (any length)
+        s = s.replace(/^[A-Z]{3}\s?\d{6}[A-Z0-9]{2,3}/, ''); // card category+date+code prefix
+        s = s.replace(/^CGO\s+/i, '');                       // "CGO " (cargo) noise
+        s = s.replace(/[\\_]/g, ' ');                         // backslash/underscore -> space
+        s = sanitizeBankText(s);
+        s = s.replace(/\s*\bUS\s*$/, '').trim();              // trailing country code (spaced)
+        s = s.replace(/MX\s*$/, '').trim();                   // trailing country code (glued or spaced)
+        return s || (desc || '').trim();
+    }
+
     // Rejoin PDF text items that wrap across lines within a cell.
     // Commas/slashes inside items mark mid-word break points:
     // e.g., ["FERNANDO,NA", "VARRETE/TOLE", "NTINO"] → "FERNANDO NAVARRETE TOLENTINO"
@@ -2836,7 +2850,7 @@
             const transactions = await parseHSBCStatement(buffer);
             // buffer is now out of scope and eligible for GC
             if (!transactions || transactions.length === 0) {
-                showToast('No se encontraron pagos recibidos en el PDF', 'warning');
+                showToast('No se encontraron movimientos en el PDF', 'warning');
                 return;
             }
             _bankImportData = transactions;
@@ -3013,7 +3027,8 @@
                         concept: sanitizeBankText(concept),
                         amount: amount,
                         method: 'transferencia',
-                        source: 'spei'
+                        source: 'spei',
+                        flow: 'in'
                     });
                 }
             }
@@ -3035,9 +3050,6 @@
                 const desc = descItem.text.trim();
                 const rowY = descItem.y;
 
-                // Skip card transactions, PayPal, charges, etc.
-                if (/^(5\d{9,}|7\d{12,}|CGO |TME\d|LC\d|Moneda extranjera)/.test(desc)) continue;
-
                 // Find the day for this row: item at x~44, same y or slightly above
                 const dayItems = items.filter(it =>
                     it.x >= 35 && it.x <= 55 && /^\d{2}$/.test(it.text.trim()) &&
@@ -3047,45 +3059,67 @@
                 const day = parseInt(dayItems[0].text.trim());
                 if (day < 1 || day > 31) continue;
 
-                // Find amounts on same row: deposit column is at x~420-450, balance at x~510+
+                // Amounts on same row, left-to-right. HSBC main-table columns:
+                // Retiro/cargo (money OUT) x~360-415 | Deposito (money IN) x~415-500 | Saldo x>500 (ignore)
                 const rowAmounts = items.filter(it =>
                     Math.abs(it.y - rowY) < 5 && /\$\s*[\d,]+\.\d{2}/.test(it.text)
                 ).sort((a, b) => a.x - b.x);
-
-                // Identify deposit: amount at x~420-460 (NOT at x~360-400 which is retiro/cargo)
-                let depositAmt = 0;
+                let depositAmt = 0, retiroAmt = 0;
                 for (const ai of rowAmounts) {
                     const m = ai.text.match(/\$\s*([\d,]+\.\d{2})/);
-                    if (m && ai.x > 415 && ai.x < 500) {
-                        depositAmt = parseFloat(m[1].replace(/,/g, ''));
-                        break;
-                    }
+                    if (!m) continue;
+                    const val = parseFloat(m[1].replace(/,/g, ''));
+                    if (ai.x > 415 && ai.x < 500) { if (!depositAmt) depositAmt = val; }
+                    else if (ai.x >= 355 && ai.x <= 415) { if (!retiroAmt) retiroAmt = val; }
                 }
-                if (depositAmt <= 0) continue;
 
                 const isoDate = stmtYear + '-' + String(stmtMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-                // Dedup: same amount within ±4 days (SPEI transfer vs settlement date lag)
                 const depDay = new Date(stmtYear, stmtMonth, day).getTime();
-                const alreadyCaptured = transactions.some(t => {
-                    if (Math.abs(t.amount - depositAmt) >= 0.01) return false;
-                    const [y, m, d] = t.date.split('-').map(Number);
-                    const tDay = new Date(y, m - 1, d).getTime();
-                    return Math.abs(depDay - tDay) <= 4 * 86400000;
-                });
-                if (alreadyCaptured) continue;
 
-                // Clean description: remove reference numbers at end
-                const cleanDesc = sanitizeBankText(desc.replace(/\s+\d{5,}$/, '').trim());
-                const isCDM = /DEPOSITO EN CDM/.test(desc);
+                // ----- DEPOSIT -> income (pago). Skip card/charge noise that isn't a real deposit. -----
+                if (depositAmt > 0 && !/^(5\d{9,}|7\d{12,}|CGO |TME\d|LC\d|Moneda extranjera)/.test(desc)) {
+                    const alreadyCaptured = transactions.some(t => {
+                        if (t.flow !== 'in') return false;
+                        if (Math.abs(t.amount - depositAmt) >= 0.01) return false;
+                        const [y, m, d] = t.date.split('-').map(Number);
+                        const tDay = new Date(y, m - 1, d).getTime();
+                        return Math.abs(depDay - tDay) <= 4 * 86400000;
+                    });
+                    if (!alreadyCaptured) {
+                        const cleanDesc = sanitizeBankText(desc.replace(/\s+\d{5,}$/, '').trim());
+                        const isCDM = /DEPOSITO EN CDM/.test(desc);
+                        transactions.push({
+                            date: isoDate,
+                            name: isCDM ? 'Deposito en efectivo (CDM)' : cleanDesc,
+                            concept: isCDM ? 'Deposito en cajero automatico' : cleanDesc,
+                            amount: depositAmt,
+                            method: isCDM ? 'efectivo' : 'transferencia',
+                            source: isCDM ? 'cdm' : 'deposito',
+                            flow: 'in'
+                        });
+                    }
+                }
 
-                transactions.push({
-                    date: isoDate,
-                    name: isCDM ? 'Deposito en efectivo (CDM)' : cleanDesc,
-                    concept: isCDM ? 'Deposito en cajero automatico' : cleanDesc,
-                    amount: depositAmt,
-                    method: isCDM ? 'efectivo' : 'transferencia',
-                    source: isCDM ? 'cdm' : 'deposito'
-                });
+                // ----- RETIRO / CARGO -> expense (gasto) -----
+                if (retiroAmt > 0) {
+                    const cleanName = cleanExpenseDescription(desc) || 'Gasto';
+                    const alreadyCaptured = transactions.some(t =>
+                        t.flow === 'out' && Math.abs(t.amount - retiroAmt) < 0.01 &&
+                        t.date === isoDate && t.name === cleanName
+                    );
+                    if (!alreadyCaptured) {
+                        transactions.push({
+                            date: isoDate,
+                            name: cleanName,
+                            concept: cleanName,
+                            amount: retiroAmt,
+                            method: 'tarjeta',
+                            source: 'cargo',
+                            flow: 'out',
+                            category: 'otro'
+                        });
+                    }
+                }
             }
         }
 
@@ -3102,6 +3136,14 @@
         );
     }
 
+    // An imported gasto already exists if a previously-imported expense has the same date+amount.
+    // (Manually-added expenses have no `date` field, so they never block a re-import.)
+    function isDuplicateExpense(tx) {
+        return (appData.expenses || []).some(e =>
+            Math.abs((e.amount || 0) - tx.amount) < 0.01 && e.date === tx.date
+        );
+    }
+
     function renderBankImportPreview(transactions) {
         const modal = document.getElementById('bankImportModal');
         const list = document.getElementById('bankImportList');
@@ -3109,30 +3151,66 @@
         if (!modal || !list) return;
 
         const mi = {'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
-        const sourceLabels = {'spei':'SPEI','cdm':'Deposito CDM','transferencia':'Transferencia'};
+        const sourceLabels = {'spei':'SPEI','cdm':'Deposito CDM','transferencia':'Transferencia','deposito':'Transferencia','cargo':'Cargo / Tarjeta'};
+        const catOptions = [['ingredientes','🥚 Ingredientes'],['transporte','🚗 Transporte'],['equipo','🔧 Equipo'],['marketing','📣 Marketing'],['otro','📦 Otro']];
 
+        const incomes = [], expenses = [];
+        transactions.forEach((tx, idx) => { (tx.flow === 'out' ? expenses : incomes).push({ tx, idx }); });
         let dupCount = 0;
-        let html = '';
-        transactions.forEach((tx, idx) => {
+
+        function incomeRow({ tx, idx }) {
             const isDup = isDuplicatePayment(tx);
             if (isDup) dupCount++;
-            html += `<label class="bank-import-item${isDup ? ' bank-import-dup' : ''}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-bottom:1px solid var(--border);cursor:pointer;">
-                <input type="checkbox" class="bank-import-cb" data-idx="${idx}" ${isDup ? '' : 'checked'} onchange="updateBankImportTotals()" style="margin-top:4px;min-width:18px;height:18px;">
+            return `<label class="bank-import-item${isDup ? ' bank-import-dup' : ''}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-bottom:1px solid var(--border);cursor:pointer;">
+                <input type="checkbox" class="bank-import-cb" data-flow="in" data-idx="${idx}" ${isDup ? '' : 'checked'} onchange="updateBankImportTotals()" style="margin-top:4px;min-width:18px;height:18px;">
                 <div style="font-size:1.3rem;">${mi[tx.method] || '🏦'}</div>
                 <div style="flex:1;min-width:0;">
                     <div style="font-weight:600;font-size:0.9rem;">${esc(tx.name)}</div>
                     ${tx.concept && tx.concept !== tx.name ? '<div style="font-size:0.8rem;color:var(--text-medium);">' + esc(tx.concept) + '</div>' : ''}
                     <div style="font-size:0.75rem;color:var(--text-light);">${formatDate(tx.date)} · ${sourceLabels[tx.source] || tx.source}${isDup ? ' · <span style="color:var(--warning);font-weight:600;">Ya importado</span>' : ''}</div>
                 </div>
-                <div style="font-weight:700;font-size:0.95rem;color:var(--success);white-space:nowrap;">${formatCurrency(tx.amount)}</div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--success);white-space:nowrap;">+${formatCurrency(tx.amount)}</div>
             </label>`;
-        });
+        }
+
+        function expenseRow({ tx, idx }) {
+            const isDup = isDuplicateExpense(tx);
+            if (isDup) dupCount++;
+            const opts = catOptions.map(([v, l]) => `<option value="${v}"${v === (tx.category || 'otro') ? ' selected' : ''}>${l}</option>`).join('');
+            return `<div class="bank-import-item${isDup ? ' bank-import-dup' : ''}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-bottom:1px solid var(--border);">
+                <input type="checkbox" class="bank-import-cb" data-flow="out" data-idx="${idx}" ${isDup ? '' : 'checked'} onchange="updateBankImportTotals()" style="margin-top:4px;min-width:18px;height:18px;">
+                <div style="font-size:1.3rem;">💸</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.9rem;">${esc(tx.name)}</div>
+                    <div style="font-size:0.75rem;color:var(--text-light);margin-bottom:6px;">${formatDate(tx.date)} · ${sourceLabels[tx.source] || tx.source}${isDup ? ' · <span style="color:var(--warning);font-weight:600;">Ya registrado</span>' : ''}</div>
+                    <select class="bank-import-cat form-select" data-idx="${idx}" style="padding:6px 8px;font-size:0.8rem;width:auto;max-width:100%;">${opts}</select>
+                </div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--danger);white-space:nowrap;">-${formatCurrency(tx.amount)}</div>
+            </div>`;
+        }
+
+        const grpBtns = (flow) => `<span><button class="btn btn-secondary" onclick="toggleGroupBankItems('${flow}',true)" style="padding:3px 8px;font-size:0.72rem;">Todos</button> <button class="btn btn-secondary" onclick="toggleGroupBankItems('${flow}',false)" style="padding:3px 8px;font-size:0.72rem;">Ninguno</button></span>`;
+        let html = '';
+        if (incomes.length) {
+            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;">
+                <span style="font-weight:700;font-size:0.95rem;color:var(--success);">📥 Ingresos → Pagos (${incomes.length})</span>${grpBtns('in')}</div>`;
+            html += incomes.map(incomeRow).join('');
+        }
+        if (expenses.length) {
+            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;margin-top:10px;border-top:2px solid var(--border);">
+                <span style="font-weight:700;font-size:0.95rem;color:var(--danger);">💸 Gastos (${expenses.length})</span>${grpBtns('out')}</div>`;
+            html += expenses.map(expenseRow).join('');
+        }
+        if (!incomes.length && !expenses.length) {
+            html = '<p style="text-align:center;color:var(--text-medium);padding:20px;">No se detectaron movimientos.</p>';
+        }
         list.innerHTML = html;
 
         if (summary) {
-            summary.innerHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;">
-                <span style="font-size:0.85rem;background:var(--success-bg);color:var(--success);padding:4px 10px;border-radius:12px;">${transactions.length} pagos detectados</span>
-                ${dupCount > 0 ? '<span style="font-size:0.85rem;background:var(--warning-bg);color:var(--warning);padding:4px 10px;border-radius:12px;">' + dupCount + ' ya importados</span>' : ''}
+            summary.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:0.85rem;background:#eaf6ea;color:var(--success);padding:4px 10px;border-radius:12px;">${incomes.length} ingresos</span>
+                <span style="font-size:0.85rem;background:#f7e4e4;color:var(--danger);padding:4px 10px;border-radius:12px;">${expenses.length} gastos</span>
+                ${dupCount > 0 ? '<span style="font-size:0.85rem;background:var(--warning-bg,#fdf3e3);color:var(--warning);padding:4px 10px;border-radius:12px;">' + dupCount + ' ya registrados</span>' : ''}
             </div>`;
         }
 
@@ -3143,21 +3221,30 @@
     function updateBankImportTotals() {
         if (!_bankImportData) return;
         const checkboxes = document.querySelectorAll('.bank-import-cb');
-        let count = 0, total = 0;
+        let inCount = 0, inTotal = 0, outCount = 0, outTotal = 0;
         checkboxes.forEach(cb => {
-            if (cb.checked) {
-                const idx = parseInt(cb.dataset.idx);
-                count++;
-                total += _bankImportData[idx].amount;
-            }
+            if (!cb.checked) return;
+            const tx = _bankImportData[parseInt(cb.dataset.idx)];
+            if (!tx) return;
+            if (tx.flow === 'out') { outCount++; outTotal += tx.amount; }
+            else { inCount++; inTotal += tx.amount; }
         });
+        const count = inCount + outCount;
         const countEl = document.getElementById('bankImportCount');
         const totalEl = document.getElementById('bankImportTotal');
         const confirmBtn = document.getElementById('bankImportConfirmBtn');
-        if (countEl) countEl.textContent = count + ' seleccionado' + (count !== 1 ? 's' : '');
-        if (totalEl) totalEl.textContent = formatCurrency(total);
+        if (countEl) {
+            const a = inCount ? '<span style="color:var(--success);font-weight:600;">' + inCount + ' pago' + (inCount !== 1 ? 's' : '') + '</span>' : '';
+            const b = outCount ? '<span style="color:var(--danger);font-weight:600;">' + outCount + ' gasto' + (outCount !== 1 ? 's' : '') + '</span>' : '';
+            countEl.innerHTML = [a, b].filter(Boolean).join(' · ') || '0 seleccionados';
+        }
+        if (totalEl) {
+            const a = inCount ? '<span style="color:var(--success);">+' + formatCurrency(inTotal) + '</span>' : '';
+            const b = outCount ? '<span style="color:var(--danger);">-' + formatCurrency(outTotal) + '</span>' : '';
+            totalEl.innerHTML = [a, b].filter(Boolean).join(' &nbsp; ') || formatCurrency(0);
+        }
         if (confirmBtn) {
-            confirmBtn.textContent = 'Importar ' + count + ' pago' + (count !== 1 ? 's' : '');
+            confirmBtn.textContent = count === 0 ? 'Importar' : ('Importar ' + count + ' movimiento' + (count !== 1 ? 's' : ''));
             confirmBtn.disabled = count === 0;
         }
     }
@@ -3167,16 +3254,45 @@
         updateBankImportTotals();
     }
 
+    function toggleGroupBankItems(flow, checked) {
+        document.querySelectorAll('.bank-import-cb[data-flow="' + flow + '"]').forEach(cb => { cb.checked = checked; });
+        updateBankImportTotals();
+    }
+
     function confirmBankImport() {
         if (!_bankImportData) return;
         const checkboxes = document.querySelectorAll('.bank-import-cb');
-        let imported = 0;
+        let impPagos = 0, impGastos = 0;
         checkboxes.forEach(cb => {
-            if (cb.checked) {
-                const idx = parseInt(cb.dataset.idx);
-                const tx = _bankImportData[idx];
+            if (!cb.checked) return;
+            const idx = parseInt(cb.dataset.idx);
+            const tx = _bankImportData[idx];
+            if (!tx) return;
+            if (tx.flow === 'out') {
+                // ----- gasto -----
+                const catSel = document.querySelector('.bank-import-cat[data-idx="' + idx + '"]');
+                const category = catSel ? catSel.value : 'otro';
+                const parts = (tx.date || '').split('-').map(Number);
+                const yy = parts[0] || new Date().getFullYear();
+                const mm = parts[1] ? parts[1] - 1 : new Date().getMonth();
+                const exp = {
+                    id: 'local_' + Date.now() + '_g' + impGastos,
+                    description: tx.name || 'Gasto',
+                    category: category,
+                    amount: tx.amount,
+                    month: mm,
+                    year: yy,
+                    date: tx.date,
+                    createdAt: new Date().toISOString(),
+                    importedFrom: 'hsbc'
+                };
+                appData.expenses.push(exp);
+                saveExpenseToFirebase(exp);
+                impGastos++;
+            } else {
+                // ----- pago recibido -----
                 const payment = {
-                    id: 'pp_' + Date.now() + '_' + imported,
+                    id: 'pp_' + Date.now() + '_' + impPagos,
                     amount: tx.amount,
                     date: tx.date,
                     method: tx.method,
@@ -3187,12 +3303,16 @@
                 };
                 pendingPayments.push(payment);
                 pushPendingPaymentToCloud(payment);
-                imported++;
+                impPagos++;
             }
         });
-        savePendingPayments();
+        if (impPagos > 0) savePendingPayments();
+        if (impGastos > 0) { saveData(); renderExpenses(); try { updateDashboard(); } catch(e) {} }
         closeBankImportModal();
-        showToast(imported + ' pago' + (imported !== 1 ? 's' : '') + ' importado' + (imported !== 1 ? 's' : '') + ' correctamente!', 'success');
+        const msg = [];
+        if (impPagos > 0) msg.push(impPagos + ' pago' + (impPagos !== 1 ? 's' : ''));
+        if (impGastos > 0) msg.push(impGastos + ' gasto' + (impGastos !== 1 ? 's' : ''));
+        showToast((msg.length ? msg.join(' y ') : '0 movimientos') + ' importado' + ((impPagos + impGastos) !== 1 ? 's' : '') + ' correctamente!', 'success');
     }
 
     function closeBankImportModal() {

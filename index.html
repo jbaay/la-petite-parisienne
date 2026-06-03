@@ -774,7 +774,7 @@
             <div class="card">
                 <div class="card-header"><h3 class="card-title">➕ Agregar Gasto</h3></div>
                 <div class="form-group"><label class="form-label">Descripción</label><input type="text" class="form-input" id="expenseDesc" placeholder="Ingredientes, transporte..."></div>
-                <div class="form-group"><label class="form-label">Categoría</label><select class="form-select" id="expenseCategory"><option value="ingredientes">🥚 Ingredientes</option><option value="transporte">🚗 Transporte</option><option value="equipo">🔧 Equipo</option><option value="marketing">📣 Marketing</option><option value="otro">📦 Otro</option></select></div>
+                <div class="form-group"><label class="form-label">Categoría</label><select class="form-select" id="expenseCategory"></select></div>
                 <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="expenseAmount" placeholder="500"></div>
                 <button class="btn btn-primary" onclick="addExpense()">➕ Agregar Gasto</button>
             </div>
@@ -1088,6 +1088,25 @@
     let lineItems = [];
     let notifications = [];
     let appTemplates = JSON.parse(localStorage.getItem('lpp_templates') || '[]');
+    // Single source of truth for expense categories: [key, icon, label].
+    // Keys are stable so existing saved gastos keep working; only labels/icons may evolve.
+    const EXPENSE_CATEGORIES = [
+        ['ingredientes', '🥚', 'Ingredientes'],
+        ['empaque', '📦', 'Empaque y desechables'],
+        ['equipo', '🔧', 'Equipo y utensilios'],
+        ['transporte', '🚗', 'Transporte y gasolina'],
+        ['servicios', '💡', 'Servicios'],
+        ['marketing', '📣', 'Marketing y publicidad'],
+        ['personal', '👥', 'Personal y ayudantes'],
+        ['renta', '🪑', 'Renta y mobiliario'],
+        ['impuestos', '🏛️', 'Impuestos y comisiones'],
+        ['otro', '📌', 'Otros']
+    ];
+    const EXPENSE_CAT_ICON = {};
+    EXPENSE_CATEGORIES.forEach(c => { EXPENSE_CAT_ICON[c[0]] = c[1]; });
+    function expenseCatOptionsHTML(selected) {
+        return EXPENSE_CATEGORIES.map(c => '<option value="' + c[0] + '"' + (c[0] === selected ? ' selected' : '') + '>' + c[1] + ' ' + c[2] + '</option>').join('');
+    }
     // Drag & drop state
     let dragSrcIndex = null;
     let isOnline = navigator.onLine;
@@ -1311,6 +1330,8 @@
         if (pd && !pd.value) pd.value = today;
         const venueEl = document.getElementById('eventVenue');
         if (venueEl) venueEl.addEventListener('change', function() { document.getElementById('otherVenueGroup').style.display = this.value==='Otro'?'block':'none'; });
+        const ecat = document.getElementById('expenseCategory');
+        if (ecat) ecat.innerHTML = expenseCatOptionsHTML('ingredientes');
         updateMonthDisplay();
         updateExpenseMonthDisplay();
         // Update PDF template status
@@ -1897,7 +1918,7 @@
             });
         }
         if(matchExpenses.length>0){
-            const ci={ingredientes:'🥚',transporte:'🚗',equipo:'🔧',marketing:'📣',otro:'📦'};
+            const ci=EXPENSE_CAT_ICON;
             html+=`<div class="search-category">💸 Gastos (${matchExpenses.length})</div>`;
             matchExpenses.slice(0,10).forEach(e=>{
                 html+=`<div class="event-item" onclick="showSection('expenses')"><div class="event-icon">${ci[e.category]||'📦'}</div><div class="event-details"><div class="event-name">${esc(e.description)}</div></div><div class="event-amount"><div class="event-total" style="color:var(--danger);">${formatCurrency(e.amount)}</div></div></div>`;
@@ -2066,7 +2087,7 @@
         const total=exps.reduce((s,e)=>s+e.amount,0);
         const tb=document.getElementById('totalExpensesBadge');if(tb)tb.textContent=formatCurrency(total);
         if(exps.length===0){c.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-medium);">Sin gastos este mes</div>';return;}
-        const ci={ingredientes:'🥚',transporte:'🚗',equipo:'🔧',marketing:'📣',otro:'📦'};
+        const ci=EXPENSE_CAT_ICON;
         c.innerHTML=exps.map(e=>`<div class="expense-item"><div class="expense-info"><div class="expense-desc">${ci[e.category]||'📦'} ${esc(e.description)}</div></div><div class="expense-amount">${formatCurrency(e.amount)}</div><button class="delete-btn" onclick="deleteExpense('${esc(e.id)}')">×</button></div>`).join('');
     }
     function deleteExpense(eid) { appData.expenses=appData.expenses.filter(e=>e.id!==eid);saveData();deleteExpenseFromFirebase(eid);renderExpenses(); }
@@ -3152,7 +3173,7 @@
 
         const mi = {'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
         const sourceLabels = {'spei':'SPEI','cdm':'Deposito CDM','transferencia':'Transferencia','deposito':'Transferencia','cargo':'Cargo / Tarjeta'};
-        const catOptions = [['ingredientes','🥚 Ingredientes'],['transporte','🚗 Transporte'],['equipo','🔧 Equipo'],['marketing','📣 Marketing'],['otro','📦 Otro']];
+        const catOptions = EXPENSE_CATEGORIES.map(c => [c[0], c[1] + ' ' + c[2]]);
 
         const incomes = [], expenses = [];
         transactions.forEach((tx, idx) => { (tx.flow === 'out' ? expenses : incomes).push({ tx, idx }); });

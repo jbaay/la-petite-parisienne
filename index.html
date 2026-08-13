@@ -7,6 +7,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="La Petite Parisienne">
     <meta name="theme-color" content="#d4a574">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <title>La Petite Parisienne - Gestión de Eventos</title>
 
     <!-- Firebase -->
@@ -93,6 +96,7 @@
         .card-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--text-dark); }
         .card-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
         .badge-pending { background: var(--warning); color: white; }
+        .badge-prospect { background: #8a8f98; color: white; }
         .badge-paid { background: var(--success); color: white; }
         .badge-partial { background: var(--primary); color: white; }
 
@@ -1061,15 +1065,68 @@
     }
     const debouncedCalculatePayments = debounce(calculatePayments, 250);
 
+    // ==================== UTILITIES: DATES ====================
+    // Parse une date "YYYY-MM-DD" avec les composants LOCAUX.
+    // new Date('2026-08-01') est interprete en UTC: a Mexico (UTC-6) cela vaut
+    // le 31 juillet 18h, donc getMonth() renvoie juillet. Tout regroupement par
+    // mois doit passer par ici, sinon les evenements du 1er tombent dans le mois d'avant.
+    function parseLocalDate(ds) {
+        if (!ds) return null;
+        const p = String(ds).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (p) return new Date(+p[1], +p[2] - 1, +p[3]);
+        const d = new Date(ds);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    // Vrai si la date "YYYY-MM-DD" tombe dans le mois/annee donnes (heure locale).
+    function isInMonth(ds, month, year) {
+        const d = parseLocalDate(ds);
+        return !!d && d.getMonth() === month && d.getFullYear() === year;
+    }
+    // Tri chronologique sur des dates ISO: la comparaison de chaines suffit et
+    // reste juste meme si une date manque.
+    function byDateAsc(a, b) { return String(a.eventDate || '').localeCompare(String(b.eventDate || '')); }
+    function byDateDesc(a, b) { return String(b.eventDate || '').localeCompare(String(a.eventDate || '')); }
+
+    // ==================== UTILITIES: STOCKAGE SUR ====================
+    // Ecriture localStorage protegee. Sans ce garde-fou, un QuotaExceededError
+    // (cache sature par les photos) remontait depuis un callback onSnapshot et
+    // interrompait tout le reste du rafraichissement: l'app se figeait sans message.
+    function safeSetItem(key, value) {
+        try { localStorage.setItem(key, value); return true; }
+        catch (e) {
+            if (key === 'dulcesMomentosData') {
+                // Cache sature: on retente sans les photos. Elles restent dans
+                // Firestore, seul le cache hors ligne perd les images.
+                try {
+                    const slim = Object.assign({}, appData, {
+                        events: (appData.events || []).map(ev => Object.assign({}, ev, { photos: [] }))
+                    });
+                    localStorage.setItem(key, JSON.stringify(slim));
+                    return true;
+                } catch (e2) { /* toujours plein: on continue sans cache */ }
+            }
+            console.warn('localStorage sature, ecriture ignoree:', key);
+            return false;
+        }
+    }
+
     let currentUser = null;
     let syncStatus = 'synced';
     let unsubEvents = null;
     let unsubExpenses = null;
     let unsubTemplates = null;
+    let unsubSettings = null;
     let revenueChart = null;
 
     // ==================== DATA STORAGE ====================
-    let appData = { events: [], expenses: [], settings: { defaultResicoRate: 2.5, investPercent: 25, investSplitCetes: 50 } };
+    // Valeurs par defaut des reglages. Toute cle absente du cache ou de Firestore
+    // retombe ici, et une cle supprimee (ex: solde manuel efface) revient au defaut.
+    const DEFAULT_SETTINGS = { defaultResicoRate: 2.5, investPercent: 25, investSplitCetes: 50 };
+    let appData = { events: [], expenses: [], settings: Object.assign({}, DEFAULT_SETTINGS) };
+    // Restaure le cache local immediatement: sans cet appel appData repartait des
+    // valeurs par defaut a chaque ouverture, puis le premier snapshot ecrasait
+    // le localStorage -> les reglages saisis a la main etaient perdus en silence.
+    loadData();
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
     let expenseMonth = new Date().getMonth();
@@ -1126,6 +1183,7 @@
             if (unsubEvents) unsubEvents();
             if (unsubExpenses) unsubExpenses();
             if (unsubTemplates) unsubTemplates();
+            if (unsubSettings) unsubSettings();
             if (unsubPendingPay) unsubPendingPay();
         }
     });
@@ -1156,6 +1214,15 @@
         else { text.textContent = 'Guardado ☁️'; }
     }
 
+    // ==================== PROSPECTS ====================
+    // Un prospect = cotizacion envoyee par WhatsApp, pas encore confirmee.
+    // Il reste visible dans la liste, le calendrier et les relances, mais il ne
+    // compte NI dans le chiffre d'affaires, NI dans le RESICO, NI dans le montant
+    // a investir: sinon un client qui ne repond jamais gonfle les chiffres du mois.
+    // Des qu'un acompte est encaisse, l'evenement est considere comme confirme.
+    function isProspect(ev) { return !!ev && ev.isProspect === true; }
+    function bookedEvents() { return appData.events.filter(e => !isProspect(e)); }
+
     // ==================== REALTIME LISTENERS (offline-first) ====================
     function migrateEvent(ev) {
         if (!ev.payments) ev.payments = [];
@@ -1163,6 +1230,8 @@
         if (!ev.lineItems) ev.lineItems = [];
         // Auto-calculate status from payments
         const paid = ev.payments.reduce((s,p)=>s+(p.amount||0),0);
+        // Un acompte vaut confirmation: le prospect devient un vrai evenement.
+        if (ev.isProspect && paid > 0) ev.isProspect = false;
         if(paid >= ev.totalPrice && ev.totalPrice > 0) ev.status = 'paid';
         else if(paid > 0) ev.status = 'partial';
         else if(ev.status === undefined) ev.status = 'pending';
@@ -1174,6 +1243,7 @@
         if (unsubEvents) { unsubEvents(); unsubEvents = null; }
         if (unsubExpenses) { unsubExpenses(); unsubExpenses = null; }
         if (unsubTemplates) { unsubTemplates(); unsubTemplates = null; }
+        if (unsubSettings) { unsubSettings(); unsubSettings = null; }
         if (unsubPendingPay) { unsubPendingPay(); unsubPendingPay = null; }
         updateSyncStatus('syncing');
         // Pending payments listener
@@ -1188,22 +1258,21 @@
             const firestoreIds = new Set(freshEvents.map(e => e.id));
             const pendingLocals = appData.events.filter(e => e.id.startsWith('local_') && !firestoreIds.has(e.id));
             appData.events = [...freshEvents, ...pendingLocals];
-            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+            safeSetItem('dulcesMomentosData', JSON.stringify(appData));
             computeNotifications();
             initializeApp();
             updateQuickStats();
         }, err => {
             updateSyncStatus('error');
             showToast('Erreur de connexion — mode hors ligne', 'error');
-            const cached = localStorage.getItem('dulcesMomentosData');
-            if (cached) appData = JSON.parse(cached);
+            loadData();
             initializeApp();
             updateQuickStats();
         });
         // Expenses listener
         unsubExpenses = db.collection('dm_expenses').onSnapshot(snap => {
             appData.expenses = snap.docs.map(d => ({id:d.id,...d.data()}));
-            localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+            safeSetItem('dulcesMomentosData', JSON.stringify(appData));
             refreshUI();
             updateQuickStats();
         }, err => {
@@ -1212,12 +1281,26 @@
         // Templates listener (synced via Firebase)
         unsubTemplates = db.collection('dm_templates').onSnapshot(snap => {
             appTemplates = snap.docs.map(d => ({id:d.id,...d.data()}));
-            localStorage.setItem('lpp_templates', JSON.stringify(appTemplates));
+            safeSetItem('lpp_templates', JSON.stringify(appTemplates));
             renderTemplates();
         }, err => {
             // Fallback to localStorage
             const cached = localStorage.getItem('lpp_templates');
             if (cached) appTemplates = JSON.parse(cached);
+        });
+        // Settings listener: % d'investissement, split CETES/Nu, soldes du portefeuille.
+        unsubSettings = db.collection('dm_settings').doc('main').onSnapshot(snap => {
+            if (!snap.exists) return;
+            // Remplacement complet (defauts + distant) pour que la suppression
+            // d'une cle sur un appareil se propage bien aux autres.
+            appData.settings = Object.assign({}, DEFAULT_SETTINGS, snap.data() || {});
+            safeSetItem('dulcesMomentosData', JSON.stringify(appData));
+            const invEl = document.getElementById('investments');
+            if (invEl && invEl.classList.contains('active')) renderInvestments();
+            const dashEl = document.getElementById('dashboard');
+            if (dashEl && dashEl.classList.contains('active')) updateDashboard();
+        }, err => {
+            // Hors ligne: on garde les reglages du cache local.
         });
     }
 
@@ -1227,6 +1310,14 @@
         try {
             const data = Object.assign({}, event);
             delete data.id;
+            // Garde-fou taille: un doc Firestore ne peut pas depasser 1 Mio.
+            // Message explicite plutot qu'un echec generique et silencieux.
+            if (JSON.stringify(data).length > 950000) {
+                updateSyncStatus('error');
+                showToast('Evento demasiado pesado: elimina una foto para poder guardarlo', 'error', 6000);
+                saveData();
+                return;
+            }
             if (event.id && !event.id.startsWith('local_')) {
                 await db.collection('dm_events').doc(event.id).set(data);
             } else {
@@ -1241,7 +1332,7 @@
             updateSyncStatus('error');
             showToast('Erreur sauvegarde — données gardées localement', 'error');
         }
-        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
     async function deleteEventFromFirebase(eventId) {
         updateSyncStatus('syncing');
@@ -1252,7 +1343,7 @@
             updateSyncStatus('error');
             showToast('Erreur suppression — réessayez', 'error');
         }
-        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
     async function saveExpenseToFirebase(expense) {
         updateSyncStatus('syncing');
@@ -1272,7 +1363,7 @@
             updateSyncStatus('error');
             showToast('Erreur sauvegarde gasto — données gardées localement', 'error');
         }
-        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
     async function deleteExpenseFromFirebase(expenseId) {
         updateSyncStatus('syncing');
@@ -1283,7 +1374,7 @@
             updateSyncStatus('error');
             showToast('Erreur suppression gasto', 'error');
         }
-        localStorage.setItem('dulcesMomentosData', JSON.stringify(appData));
+        safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
     // Template Firebase save/delete
     async function saveTemplateToFirebase(template) {
@@ -1300,17 +1391,39 @@
                 if (idx !== -1) appTemplates[idx].id = ref.id;
             }
         } catch(e) { showToast('Erreur sauvegarde template', 'error'); }
-        localStorage.setItem('lpp_templates', JSON.stringify(appTemplates));
+        safeSetItem('lpp_templates', JSON.stringify(appTemplates));
     }
     async function deleteTemplateFromFirebase(templateId) {
         try {
             if (templateId && !templateId.startsWith('tpl_')) await db.collection('dm_templates').doc(templateId).delete();
         } catch(e) { showToast('Erreur suppression template', 'error'); }
-        localStorage.setItem('lpp_templates', JSON.stringify(appTemplates));
+        safeSetItem('lpp_templates', JSON.stringify(appTemplates));
     }
 
-    function loadData() { const s=localStorage.getItem('dulcesMomentosData'); if(s) appData=JSON.parse(s); }
-    function saveData() { localStorage.setItem('dulcesMomentosData', JSON.stringify(appData)); }
+    // Reglages partages entre appareils (doc unique dans dm_settings).
+    // Ils vivaient uniquement en localStorage: le % d'investissement, le split
+    // CETES/Nu et les soldes du portefeuille etaient donc perdus a chaque
+    // rechargement et jamais visibles depuis un autre telephone.
+    async function saveSettingsToFirebase() {
+        try {
+            // set() sans merge: une cle supprimee localement (ex: retour au solde
+            // suivi automatiquement) doit aussi disparaitre sur les autres appareils.
+            await db.collection('dm_settings').doc('main').set(Object.assign({}, appData.settings || {}));
+        } catch (e) { showToast('Erreur sauvegarde ajustes', 'error'); }
+    }
+
+    function loadData() {
+        try {
+            const s = localStorage.getItem('dulcesMomentosData');
+            if (!s) return;
+            const parsed = JSON.parse(s);
+            if (!parsed || typeof parsed !== 'object') return;
+            if (Array.isArray(parsed.events)) appData.events = parsed.events;
+            if (Array.isArray(parsed.expenses)) appData.expenses = parsed.expenses;
+            appData.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {});
+        } catch (e) { console.warn('Cache local illisible, on repart des valeurs par defaut'); }
+    }
+    function saveData() { safeSetItem('dulcesMomentosData', JSON.stringify(appData)); }
 
     // ==================== ONLINE/OFFLINE ====================
     window.addEventListener('online', ()=>{ isOnline=true; document.getElementById('offlineBanner').classList.remove('visible'); });
@@ -1584,6 +1697,12 @@
     }
 
     // ==================== PHOTOS ====================
+    // Budget photos par evenement. Un document Firestore est plafonne a 1 Mio:
+    // au-dela, l'enregistrement echouait avec un simple toast generique et
+    // l'evenement ne partait jamais dans le cloud.
+    const PHOTO_MAX_BYTES = 150000;   // par photo (base64)
+    const PHOTO_BUDGET_BYTES = 700000; // total par evenement, marge sous la limite Firestore
+
     function compressImage(file, cb) {
         const r=new FileReader(); r.onload=function(e){
             const img=new Image(); img.onload=function(){
@@ -1591,16 +1710,24 @@
                 if(w>max||h>max){if(w>h){h=h*(max/w);w=max;}else{w=w*(max/h);h=max;}}
                 const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
                 canvas.getContext('2d').drawImage(img,0,0,w,h);
-                let data=canvas.toDataURL('image/jpeg',0.6);
-                if(data.length>200000) data=canvas.toDataURL('image/jpeg',0.4);
+                // Baisse la qualite par paliers jusqu'a passer sous le budget.
+                let q=0.6, data=canvas.toDataURL('image/jpeg',q);
+                while(data.length>PHOTO_MAX_BYTES && q>0.25){ q-=0.1; data=canvas.toDataURL('image/jpeg',q); }
                 cb(data);
             }; img.src=e.target.result;
         }; r.readAsDataURL(file);
     }
+    function photosWeight(list) { return (list||[]).reduce((s,p)=>s+(p?p.length:0),0); }
     function addFormPhoto() {
         if(formPhotos.length>=5){showToast('Máximo 5 fotos','warning');return;}
         const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
-        inp.onchange=function(){if(inp.files[0])compressImage(inp.files[0],data=>{formPhotos.push(data);renderFormPhotos();});};
+        inp.onchange=function(){if(inp.files[0])compressImage(inp.files[0],data=>{
+            if(photosWeight(formPhotos)+data.length>PHOTO_BUDGET_BYTES){
+                showToast('Las fotos pesan demasiado. Elimina una antes de agregar otra.','warning',4000);
+                return;
+            }
+            formPhotos.push(data);renderFormPhotos();
+        });};
         inp.click();
     }
     function removeFormPhoto(i) { formPhotos.splice(i,1); renderFormPhotos(); }
@@ -1878,7 +2005,8 @@
                 currentGroup=group;
                 html+=`<div class="event-group-title">${group==='upcoming'?'📅 Proximos Eventos':'📁 Eventos Pasados'}</div>`;
             }
-            const sb={pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status]||{c:'badge-pending',t:'Pendiente'};
+            let sb={pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status]||{c:'badge-pending',t:'Pendiente'};
+            if(isProspect(ev)) sb={c:'badge-prospect',t:'Cotización'};
             const si=(ev.services||[]).map(s=>({pastel:'🎂',mesa_dulces:'🍬',postres:'🧁',quesos:'🧀',bebidas:'🥂',otro:'📦'}[s]||'📦')).join('');
             const pc=(ev.photos||[]).length;
             const cdBadge=cd.text?`<span class="countdown-badge ${cd.css}">${cd.text}</span>`:'';
@@ -1971,11 +2099,16 @@
         }
 
         c.innerHTML=`
-            <div class="card"><div class="card-header"><h3 class="card-title">${esc(ev.clientName)}</h3><span class="card-badge ${ev.status==='paid'?'badge-paid':ev.status==='partial'?'badge-partial':'badge-pending'}">${ev.status==='paid'?'Pagado':ev.status==='partial'?'Parcial':'Pendiente'}</span></div>
+            <div class="card"><div class="card-header"><h3 class="card-title">${esc(ev.clientName)}</h3><span class="card-badge ${isProspect(ev)?'badge-prospect':ev.status==='paid'?'badge-paid':ev.status==='partial'?'badge-partial':'badge-pending'}">${isProspect(ev)?'Cotización':ev.status==='paid'?'Pagado':ev.status==='partial'?'Parcial':'Pendiente'}</span></div>
             <div class="payment-row"><span class="payment-label">📅 Fecha</span><span class="payment-value">${formatDate(ev.eventDate)}${cdTag}</span></div>
             <div class="payment-row"><span class="payment-label">📍 Lugar</span><span class="payment-value">${esc(ev.venue||'No especificado')}</span></div>
             <div class="payment-row"><span class="payment-label">👥 Invitados</span><span class="payment-value">${ev.guestCount||'-'}</span></div>
             <div class="payment-row"><span class="payment-label">📱 WhatsApp</span><span class="payment-value">${esc(ev.clientPhone||'-')}</span></div></div>
+
+            ${isProspect(ev)?`<div class="card" style="border-left:4px solid #8a8f98;">
+                <div style="font-size:0.88rem;color:var(--text-medium);margin-bottom:12px;">📄 Cotización enviada, aún sin confirmar. No cuenta en los ingresos del mes, ni en el RESICO, ni en la inversión. Se confirma sola en cuanto registres un anticipo.</div>
+                <button class="btn btn-success" style="width:100%;" onclick="confirmProspect('${esc(ev.id)}')">✅ Confirmar evento</button>
+            </div>`:''}
 
             <div class="card"><div class="card-header"><h3 class="card-title">🎂 Servicios</h3></div><div style="display:flex;flex-wrap:wrap;gap:5px;">${svcH||'<p style="color:var(--text-medium);">Sin servicios</p>'}</div></div>
 
@@ -2040,6 +2173,18 @@
         ev.commissionPaid=!ev.commissionPaid;
         saveData();saveEventToFirebase(ev).finally(()=>{_savingEvent=false;});showEventDetail(eid);
     }
+    // Le client a confirme sans avoir encore paye: on sort la cotizacion des prospects
+    // pour qu'elle compte dans les chiffres du mois.
+    function confirmProspect(eid) {
+        if(_savingEvent)return; _savingEvent=true;
+        const ev=appData.events.find(e=>e.id===eid);if(!ev){_savingEvent=false;return;}
+        ev.isProspect=false;
+        saveData();
+        saveEventToFirebase(ev).finally(()=>{_savingEvent=false;});
+        showToast('Evento confirmado — ya cuenta en tus ingresos','success');
+        computeNotifications();
+        showEventDetail(eid);
+    }
     function deleteEvent(eid) { showConfirm('Eliminar Evento','Este evento será eliminado permanentemente.','🗑️',function(){appData.events=appData.events.filter(e=>e.id!==eid);saveData();deleteEventFromFirebase(eid);showToast('Evento eliminado','info');showSection('events');},'Eliminar','btn-danger'); }
     function editEvent(eid) {
         const ev=appData.events.find(e=>e.id===eid);if(!ev)return;
@@ -2099,7 +2244,7 @@
     function updateMonthDisplay() { const m=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];document.getElementById('monthDisplay').textContent=m[currentMonth]+' '+currentYear; }
 
     function updateDashboard() {
-        const mEvs=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===currentMonth&&d.getFullYear()===currentYear;});
+        const mEvs=bookedEvents().filter(e=>isInMonth(e.eventDate,currentMonth,currentYear));
         const mExps=appData.expenses.filter(e=>e.month===currentMonth&&e.year===currentYear);
         const totalRev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
         const totalExp=mExps.reduce((s,e)=>s+e.amount,0);
@@ -2158,7 +2303,7 @@
         const compRate=mEvs.length>0?Math.round(paidCount/mEvs.length*100):0;
         // Best month this year
         let bestM='',bestV=0;
-        for(let i=0;i<12;i++){const mv=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===currentYear;}).reduce((s,e)=>s+(e.totalPrice||0),0);if(mv>bestV){bestV=mv;bestM=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][i];}}
+        for(let i=0;i<12;i++){const mv=bookedEvents().filter(e=>isInMonth(e.eventDate,i,currentYear)).reduce((s,e)=>s+(e.totalPrice||0),0);if(mv>bestV){bestV=mv;bestM=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][i];}}
         const es=document.getElementById('dashExtraStats');
         es.innerHTML=`<div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value">${formatCurrency(avgVal)}</div><div class="stat-label">Promedio/Evento</div></div><div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value">${compRate}%</div><div class="stat-label">Cobrado</div></div><div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-value">${bestM||'-'}</div><div class="stat-label">Mejor Mes</div></div><div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value">${formatCurrency(bestV)}</div><div class="stat-label">Mejor Ingreso</div></div>`;
 
@@ -2170,7 +2315,7 @@
         else{
             let tc=0,pc2=0,h='';
             Object.values(pg).forEach(g=>{const gt=g.events.reduce((s,e)=>s+e.commission,0);const gp=g.events.filter(e=>e.commissionPaid).reduce((s,e)=>s+e.commission,0);const ap=g.events.every(e=>e.commissionPaid);tc+=gt;pc2+=gp;
-            h+=`<div style="background:${ap?'#e8f5e9':'#fff8e6'};padding:12px;border-radius:10px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;">🤝 ${g.displayName}</span><span style="font-weight:700;color:${ap?'var(--success)':'var(--warning)'};">${formatCurrency(gt)}</span></div>${g.events.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid rgba(0,0,0,0.1);"><span style="font-size:0.85rem;color:var(--text-medium);">${e.clientName}</span><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.85rem;">${formatCurrency(e.commission)}</span><span onclick="toggleCommissionPaidFromDashboard('${e.eventId}')" style="cursor:pointer;font-size:1.2rem;">${e.commissionPaid?'✅':'⬜'}</span></div></div>`).join('')}</div>`;});
+            h+=`<div style="background:${ap?'#e8f5e9':'#fff8e6'};padding:12px;border-radius:10px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;">🤝 ${esc(g.displayName)}</span><span style="font-weight:700;color:${ap?'var(--success)':'var(--warning)'};">${formatCurrency(gt)}</span></div>${g.events.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid rgba(0,0,0,0.1);"><span style="font-size:0.85rem;color:var(--text-medium);">${esc(e.clientName)}</span><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.85rem;">${formatCurrency(e.commission)}</span><span onclick="toggleCommissionPaidFromDashboard('${esc(e.eventId)}')" style="cursor:pointer;font-size:1.2rem;">${e.commissionPaid?'✅':'⬜'}</span></div></div>`).join('')}</div>`;});
             const pend=tc-pc2;
             h+=`<div style="border-top:2px solid var(--border);margin-top:10px;padding-top:15px;"><div class="payment-row"><span class="payment-label" style="font-weight:700;">Total Comisiones</span><span class="payment-value" style="font-weight:700;">${formatCurrency(tc)}</span></div><div class="payment-row"><span class="payment-label" style="color:var(--success);">✅ Pagado</span><span class="payment-value" style="color:var(--success);">${formatCurrency(pc2)}</span></div><div class="payment-row"><span class="payment-label" style="color:var(--warning);">⬜ Pendiente</span><span class="payment-value" style="color:var(--warning);">${formatCurrency(pend)}</span></div></div>`;
             cc.innerHTML=h;
@@ -2190,8 +2335,8 @@
         const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
         const data=[],prevData=[];
         for(let i=0;i<12;i++){
-            data.push(appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===currentYear;}).reduce((s,e)=>s+(e.totalPrice||0),0));
-            prevData.push(appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===i&&d.getFullYear()===currentYear-1;}).reduce((s,e)=>s+(e.totalPrice||0),0));
+            data.push(bookedEvents().filter(e=>isInMonth(e.eventDate,i,currentYear)).reduce((s,e)=>s+(e.totalPrice||0),0));
+            prevData.push(bookedEvents().filter(e=>isInMonth(e.eventDate,i,currentYear-1)).reduce((s,e)=>s+(e.totalPrice||0),0));
         }
         revenueChart=new Chart(canvas,{type:'bar',data:{labels:ms,datasets:[{label:currentYear+'',data:data,backgroundColor:'rgba(212,165,116,0.7)',borderColor:'#d4a574',borderWidth:2,borderRadius:6},{label:(currentYear-1)+'',data:prevData,backgroundColor:'rgba(139,115,85,0.3)',borderColor:'#8b7355',borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{family:'Nunito'}}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString()}},x:{ticks:{font:{family:'Nunito'}}}}}});
     }
@@ -2249,7 +2394,7 @@
         document.getElementById('invCumNu').textContent=formatCurrency(cumN);
         document.getElementById('invCumCount').textContent=cumCount;
         // Por invertir (no invertidos, con monto > 0), evento más reciente primero
-        const pend=appData.events.filter(e=>!e.invested && computeInvestment(e.totalPrice||0).total>0)
+        const pend=appData.events.filter(e=>!e.invested && !isProspect(e) && computeInvestment(e.totalPrice||0).total>0)
             .sort((a,b)=>(b.eventDate||'').localeCompare(a.eventDate||''));
         let pendTotal=0;
         const pl=document.getElementById('invPendingList');
@@ -2302,6 +2447,7 @@
         appData.settings.investPercent=pct;
         appData.settings.investSplitCetes=cetes;
         saveData();
+        saveSettingsToFirebase();
         renderInvestments();
         const dashEl = document.getElementById('dashboard');
         if(dashEl && dashEl.classList.contains('active')) updateDashboard();
@@ -2370,12 +2516,14 @@
         appData.settings.investRateCetes=rc;
         appData.settings.investRateNu=rn;
         saveData();
+        saveSettingsToFirebase();
         renderPortfolio();
         showToast('Portafolio actualizado','success');
     }
     function usePortfolioTracked() {
         if(appData.settings){ delete appData.settings.investBalanceCetes; delete appData.settings.investBalanceNu; }
         saveData();
+        saveSettingsToFirebase();
         renderPortfolio();
         showToast('Saldos sincronizados con tu ahorro registrado','info');
     }
@@ -2392,7 +2540,7 @@
             // Upcoming in 3 days
             if(diff>=0&&diff<=3){const id='upcoming_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'urgent',icon:'📅',title:diff===0?'HOY: '+ev.clientName:diff===1?'MAÑANA: '+ev.clientName:'En '+diff+' días: '+ev.clientName,sub:ev.venue||'',eventId:ev.id});}
             // Overdue payment
-            if(diff<0&&ev.status!=='paid'){const id='overdue_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'warning',icon:'💰',title:'Pago pendiente: '+ev.clientName,sub:formatCurrency(ev.totalPrice),eventId:ev.id});}
+            if(diff<0&&ev.status!=='paid'&&!isProspect(ev)){const id='overdue_'+ev.id;if(!dismissed.includes(id))notifications.push({id,type:'warning',icon:'💰',title:'Pago pendiente: '+ev.clientName,sub:formatCurrency(ev.totalPrice),eventId:ev.id});}
         });
         // Recordatorio de inversión: eventos cobrados (pagados) aún no invertidos
         let pendInv=0, pendC=0, pendN=0;
@@ -2419,7 +2567,7 @@
             else{c.innerHTML=notifications.map(n=>`<div class="notif-item notif-${n.type}" onclick="tapNotif('${n.eventId}','${n.id}')"><span style="font-size:1.5rem;">${n.icon}</span><div style="flex:1;"><div style="font-weight:600;">${n.title}</div><div style="font-size:0.85rem;color:var(--text-medium);">${n.sub}</div></div><span onclick="event.stopPropagation();dismissNotif('${n.id}')" style="font-size:1.2rem;padding:4px;">✕</span></div>`).join('');}
         } else { m.style.display='none'; }
     }
-    function dismissNotif(id) { const d=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');d.push(id);localStorage.setItem('lpp_dismissed_notifs',JSON.stringify(d));computeNotifications();toggleNotifications();toggleNotifications(); }
+    function dismissNotif(id) { const d=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');d.push(id);safeSetItem('lpp_dismissed_notifs',JSON.stringify(d));computeNotifications();toggleNotifications();toggleNotifications(); }
     function tapNotif(eid,nid) { dismissNotif(nid); document.getElementById('notifModal').style.display='none'; if(eid) showEventDetail(eid); else showSection('investments'); }
 
     // ==================== TEMPLATES ====================
@@ -2428,7 +2576,7 @@
         const name=prompt('Nombre del template:',ev.clientName+' - Template');if(!name)return;
         const tpl={id:'tpl_'+Date.now(),name,services:ev.services||[],serviceDetails:ev.serviceDetails||{},totalPrice:ev.totalPrice,hasPlanner:ev.hasPlanner,plannerName:ev.plannerName,commissionRate:ev.commissionRate,venue:ev.venue,guestCount:ev.guestCount,notes:ev.notes,lineItems:ev.lineItems||[]};
         appTemplates.push(tpl);
-        localStorage.setItem('lpp_templates',JSON.stringify(appTemplates));
+        safeSetItem('lpp_templates',JSON.stringify(appTemplates));
         saveTemplateToFirebase(tpl);
         showToast('Template guardado!','success');
     }
@@ -2449,7 +2597,7 @@
         closeTemplatePicker();
         showSection('newEvent');
     }
-    function deleteTemplate(tid) { showConfirm('Eliminar Template','Este template será eliminado.','📑',function(){appTemplates=appTemplates.filter(t=>t.id!==tid);localStorage.setItem('lpp_templates',JSON.stringify(appTemplates));deleteTemplateFromFirebase(tid);renderTemplates();showToast('Template eliminado','info');},'Eliminar','btn-danger'); }
+    function deleteTemplate(tid) { showConfirm('Eliminar Template','Este template será eliminado.','📑',function(){appTemplates=appTemplates.filter(t=>t.id!==tid);safeSetItem('lpp_templates',JSON.stringify(appTemplates));deleteTemplateFromFirebase(tid);renderTemplates();showToast('Template eliminado','info');},'Eliminar','btn-danger'); }
     function renderTemplates() {
         const c=document.getElementById('templatesList');if(!c)return;
         const nt=document.getElementById('noTemplates');
@@ -2472,18 +2620,22 @@
         const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
         inp.onchange=function(){
             if(!inp.files[0]) return;
-            const reader=new FileReader();
-            reader.onload=function(e){
-                pdfTemplateImg=e.target.result;
-                localStorage.setItem('lpp_pdf_template', pdfTemplateImg);
+            // Compresse avant stockage: une photo brute de telephone (3-5 Mo en base64)
+            // saturait a elle seule le localStorage et faisait echouer tous les
+            // enregistrements suivants.
+            compressImage(inp.files[0], function(data){
+                pdfTemplateImg=data;
+                if(!safeSetItem('lpp_pdf_template', pdfTemplateImg)){
+                    showToast('Memoria llena: cierra y vuelve a abrir la app','error',5000);
+                    return;
+                }
                 // Update UI
                 const ts=document.getElementById('templateStatus');
                 const mb=document.getElementById('mainTemplateBtn');
                 if(ts) ts.textContent='✅ Template cargado';
                 if(mb) mb.innerHTML='🖼️ ✅ Template PDF cargado (cambiar)';
                 showToast('Template PDF cargado!','success');
-            };
-            reader.readAsDataURL(inp.files[0]);
+            });
         };
         inp.click();
     }
@@ -2609,7 +2761,7 @@
     function contactWhatsApp(phone,name) { const cp=phone.replace(/\D/g,'');const msg=encodeURIComponent('Hola '+name+', te escribo de La Petite Parisienne 🥐');window.open('https://wa.me/'+cp+'?text='+msg,'_blank'); }
     function sendMonthlyReport() {
         const ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-        const mEvs=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===currentMonth&&d.getFullYear()===currentYear;});
+        const mEvs=bookedEvents().filter(e=>isInMonth(e.eventDate,currentMonth,currentYear));
         const mExps=appData.expenses.filter(e=>e.month===currentMonth&&e.year===currentYear);
         const rev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
         const exp=mExps.reduce((s,e)=>s+e.amount,0);
@@ -2624,7 +2776,7 @@
     }
     function updateQuickStats() {
         const now=new Date();
-        const mEvs=appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+        const mEvs=bookedEvents().filter(e=>isInMonth(e.eventDate,now.getMonth(),now.getFullYear()));
         const mExps=appData.expenses.filter(e=>e.month===now.getMonth()&&e.year===now.getFullYear());
         const rev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
         const exp=mExps.reduce((s,e)=>s+e.amount,0);
@@ -2646,7 +2798,7 @@
 
     // Cache + UI only. Cloud writes/deletes are done explicitly at each call site.
     function savePendingPayments() {
-        localStorage.setItem('lpp_pending_payments', JSON.stringify(pendingPayments));
+        safeSetItem('lpp_pending_payments', JSON.stringify(pendingPayments));
         renderPendingPayments();
         updatePendingPayBadge();
         try { updateDashboard(); } catch(e) {}
@@ -2678,13 +2830,13 @@
     async function migratePendingPaymentsOnce() {
         if (localStorage.getItem('lpp_pp_migrated_v2') === '1') return;
         const locals = JSON.parse(localStorage.getItem('lpp_pending_payments') || '[]');
-        if (locals.length === 0) { localStorage.setItem('lpp_pp_migrated_v2', '1'); return; }
+        if (locals.length === 0) { safeSetItem('lpp_pp_migrated_v2', '1'); return; }
         // 1) Upload this device's current inbox under stable ids (no duplicates possible).
         await Promise.all(locals.map(p => pushPendingPaymentToCloud(p)));
         // 2) Remove all legacy auto-id docs (stale copies + orphans from old deletes/assigns).
         const snap = await db.collection('dm_pending_payments').get();
         await Promise.all(snap.docs.map(d => d.data().key ? Promise.resolve() : deletePendingPaymentFromCloud(d.id)));
-        localStorage.setItem('lpp_pp_migrated_v2', '1');
+        safeSetItem('lpp_pp_migrated_v2', '1');
     }
 
     function setupPendingPaymentsListener() {
@@ -2700,7 +2852,7 @@
         unsubPendingPay = db.collection('dm_pending_payments').onSnapshot(snap => {
             pendingPayments = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
             pendingPayments.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-            localStorage.setItem('lpp_pending_payments', JSON.stringify(pendingPayments));
+            safeSetItem('lpp_pending_payments', JSON.stringify(pendingPayments));
             renderPendingPayments();
             updatePendingPayBadge();
             try { updateDashboard(); } catch(e) {}
@@ -3437,7 +3589,7 @@
         evs.sort((a, b) => {
             if (a.status === 'paid' && b.status !== 'paid') return 1;
             if (a.status !== 'paid' && b.status === 'paid') return -1;
-            return new Date(b.eventDate) - new Date(a.eventDate);
+            return byDateDesc(a, b);
         });
         if (q && q.trim()) {
             const ql = q.toLowerCase();
@@ -3445,7 +3597,7 @@
         }
         if (evs.length === 0) { c.innerHTML = '<p style="text-align:center;color:var(--text-medium);padding:20px;">Sin resultados</p>'; return; }
         c.innerHTML = evs.slice(0, 15).map(ev => {
-            const sb = {pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status] || {c:'badge-pending',t:'Pendiente'};
+            const sb = isProspect(ev) ? {c:'badge-prospect',t:'Cotización'} : ({pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[ev.status] || {c:'badge-pending',t:'Pendiente'});
             const remaining = Math.max(0, ev.totalPrice - (ev.payments || []).reduce((s, p) => s + (p.amount || 0), 0));
             return `<div class="event-item" onclick="assignPaymentToEvent('${esc(ev.id)}')">
                 <div class="event-icon">📋</div>
@@ -3476,6 +3628,7 @@
             const totalPaid = ev.payments.reduce((s, p) => s + (p.amount || 0), 0);
             if (totalPaid >= ev.totalPrice && ev.totalPrice > 0) ev.status = 'paid';
             else if (totalPaid > 0) ev.status = 'partial';
+            if (totalPaid > 0) ev.isProspect = false; // un acompte vaut confirmation
             saveData(); saveEventToFirebase(ev);
             // Remove from pending payments
             pendingPayments = pendingPayments.filter(p => p.id !== pp.id);
@@ -3565,6 +3718,7 @@
         const totalPaid=ev.payments.reduce((s,p)=>s+(p.amount||0),0);
         if(totalPaid>=ev.totalPrice&&ev.totalPrice>0) ev.status='paid';
         else if(totalPaid>0) ev.status='partial';
+        if(totalPaid>0) ev.isProspect=false; // un acompte vaut confirmation
         saveData(); saveEventToFirebase(ev);
         showToast('Pago de '+formatCurrency(amount)+' registrado!','success');
         quickPayMethod='efectivo';
@@ -3579,7 +3733,7 @@
         if(others.length===0) return '';
         const totalRevenue=others.reduce((s,e)=>s+(e.totalPrice||0),0)+ev.totalPrice;
         let html=`<div class="card client-history"><div class="card-header"><h3 class="card-title">👤 Historial del Cliente</h3><span style="font-size:0.85rem;color:var(--primary-dark);font-weight:700;">${others.length+1} eventos • ${formatCurrency(totalRevenue)}</span></div>`;
-        others.sort((a,b)=>new Date(b.eventDate)-new Date(a.eventDate));
+        others.sort(byDateDesc);
         html+=others.slice(0,5).map(e=>{
             const sb={pending:{c:'badge-pending',t:'Pendiente'},partial:{c:'badge-partial',t:'Parcial'},paid:{c:'badge-paid',t:'Pagado'}}[e.status]||{c:'badge-pending',t:'Pendiente'};
             return `<div class="client-history-item" onclick="showEventDetail('${esc(e.id)}')"><div style="flex:1;"><div style="font-weight:600;font-size:0.9rem;">${formatDate(e.eventDate)}</div><div style="font-size:0.8rem;color:var(--text-medium);">${esc(e.venue||'')}</div></div><div style="text-align:right;"><div style="font-weight:700;font-size:0.9rem;">${formatCurrency(e.totalPrice)}</div><span class="card-badge ${sb.c}" style="font-size:0.65rem;">${sb.t}</span></div></div>`;
@@ -3607,24 +3761,25 @@
                 const d = new Date(e.eventDate + 'T00:00:00');
                 return d >= today && d <= in7days;
             })
-            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+            .sort(byDateAsc);
 
         // Payments to follow up: events with remaining balance where event is within 14 days
         const in14days = new Date(today); in14days.setDate(in14days.getDate() + 14);
         const toFollowUp = appData.events
             .filter(e => {
                 if (e.status === 'paid') return false;
+                if (isProspect(e)) return false; // pas encore confirme: rien a relancer cote paiement
                 const d = new Date(e.eventDate + 'T00:00:00');
                 if (d < today) return false; // past events
                 const paid = (e.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
                 const remaining = e.totalPrice - paid;
                 return remaining > 0 && d <= in14days;
             })
-            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+            .sort(byDateAsc);
 
         // Money to collect this week
         const toCollectThisWeek = upcoming
-            .filter(e => e.status !== 'paid')
+            .filter(e => e.status !== 'paid' && !isProspect(e))
             .reduce((s,e) => s + Math.max(0, e.totalPrice - (e.payments||[]).reduce((ss,p)=>ss+(p.amount||0),0)), 0);
 
         // Build HTML
@@ -3707,7 +3862,7 @@
                 const d = new Date(e.eventDate + 'T00:00:00');
                 return d < today && !e.rating;
             })
-            .sort((a,b) => new Date(b.eventDate) - new Date(a.eventDate))
+            .sort(byDateDesc)
             .slice(0, 3);
 
         if (toRate.length > 0) {
@@ -3735,7 +3890,7 @@
                 const d = new Date(e.eventDate + 'T00:00:00');
                 return d < today;
             })
-            .sort((a,b) => new Date(b.eventDate) - new Date(a.eventDate))
+            .sort(byDateDesc)
             .slice(0, 5);
 
         if (toAskReview.length > 0) {
@@ -3855,11 +4010,11 @@
 
         const upcoming = appData.events
             .filter(e => { const d = new Date(e.eventDate+'T00:00:00'); return d >= today && d <= in7days; })
-            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+            .sort(byDateAsc);
 
         const pendingPay = appData.events
-            .filter(e => { if(e.status==='paid') return false; const d=new Date(e.eventDate+'T00:00:00'); return d>=today; })
-            .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate));
+            .filter(e => { if(e.status==='paid'||isProspect(e)) return false; const d=new Date(e.eventDate+'T00:00:00'); return d>=today; })
+            .sort(byDateAsc);
 
         const totalToCollect = pendingPay.reduce((s,e) => s + Math.max(0, e.totalPrice - (e.payments||[]).reduce((ss,p)=>ss+(p.amount||0),0)), 0);
 
@@ -3886,7 +4041,7 @@
         }
 
         const now = new Date();
-        const mEvs = appData.events.filter(e=>{const d=new Date(e.eventDate);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+        const mEvs = bookedEvents().filter(e=>isInMonth(e.eventDate,now.getMonth(),now.getFullYear()));
         const rev = mEvs.reduce((s,e)=>s+(e.totalPrice||0),0);
         msg += `\n📊 MES: ${mEvs.length} eventos — ${formatCurrency(rev)}`;
 
@@ -3999,6 +4154,9 @@
             payments: [],
             photos: [],
             lineItems,
+            // Cotizacion envoyee mais pas encore confirmee: exclue des chiffres
+            // du mois jusqu'au premier acompte (ou confirmation manuelle).
+            isProspect: true,
             quoteSentAt: new Date().toISOString(),
             createdAt: new Date().toISOString()
         };
@@ -4293,6 +4451,17 @@
         },'Duplicar','btn-primary');
     }
 
+    </script>
+
+    <script>
+    // Service worker: permet d'ouvrir l'app sans reseau (sur un evenement, en
+    // sous-sol...). Le HTML reste servi reseau-d'abord, donc une mise en ligne
+    // est prise en compte des le rechargement suivant.
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('sw.js').catch(function(e) { console.warn('SW non enregistre:', e); });
+        });
+    }
     </script>
 </body>
 </html>

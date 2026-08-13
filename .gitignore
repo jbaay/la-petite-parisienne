@@ -11,6 +11,12 @@ node_modules/
 *.gif
 *.heic
 
+# Exception: icones de l'app (PWA). Ce sont des assets generes, pas des photos,
+# et elles doivent etre publiees pour que l'installation sur telephone marche.
+!icon-192.png
+!icon-512.png
+!icon-maskable-512.png
+
 # OS / tooling artifacts
 nul
 .DS_Store

@@ -642,13 +642,26 @@
             </div>
             <div class="card">
                 <div class="card-header"><h3 class="card-title">💰 Precio y Comisiones</h3></div>
-                <div class="form-group"><label class="form-label">Precio Total del Evento</label><input type="number" class="form-input" id="totalPrice" placeholder="25000" oninput="debouncedCalculatePayments()"><div style="font-size:0.78rem;color:var(--text-medium);margin-top:5px;">Déjalo vacío si todavía no lo sabes — puedes registrar anticipos y poner el total después.</div></div>
+                <div class="form-group"><label class="form-label">Precio del Evento</label><input type="number" class="form-input" id="totalPrice" placeholder="25000" oninput="debouncedCalculatePayments()"><div style="font-size:0.78rem;color:var(--text-medium);margin-top:5px;">Déjalo vacío si todavía no lo sabes — puedes registrar anticipos y poner el total después.</div></div>
+                <div class="form-group">
+                    <label class="form-label">Descuento (opcional)</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <div id="discountTypeBtns" style="display:flex;gap:4px;">
+                            <button type="button" class="pay-method-btn active" onclick="setDiscountType('percent',this)">%</button>
+                            <button type="button" class="pay-method-btn" onclick="setDiscountType('amount',this)">$</button>
+                        </div>
+                        <input type="number" class="form-input" id="discountValue" placeholder="10" oninput="debouncedCalculatePayments()" style="flex:1;">
+                    </div>
+                    <div style="font-size:0.78rem;color:var(--text-medium);margin-top:5px;">Ej: 10 % de descuento a un cliente frecuente. Se aplica sobre el precio de arriba.</div>
+                </div>
                 <div class="info-box"><span class="info-box-icon">💡</span> Si agregas líneas de cotización arriba, el total se calcula automáticamente. Si no, ingresa el precio manualmente.</div>
                 <div class="toggle-group"><span class="toggle-label">¿Hay Wedding Planner?</span><label class="toggle"><input type="checkbox" id="hasPlanner" onchange="togglePlannerFields()"><span class="toggle-slider"></span></label></div>
                 <div id="plannerFields" style="display:none;">
                     <div class="form-group"><label class="form-label">Nombre del Planner</label><input type="text" class="form-input" id="plannerName" placeholder="Nombre del wedding planner"></div>
                     <div class="commission-group"><div class="form-group"><label class="form-label">Comisión (%)</label><input type="number" class="form-input commission-rate" id="commissionRate" value="10" oninput="calculatePayments()"></div></div>
                 </div>
+                <div class="payment-row" id="listPriceRow" style="display:none;"><span class="payment-label">🏷️ Precio de lista</span><span class="payment-value" id="listPriceAmount">$0</span></div>
+                <div class="payment-row" id="discountRow" style="display:none;"><span class="payment-label" id="discountRowLabel">🎁 Descuento</span><span class="payment-value" id="discountRowAmount" style="color:var(--success);">$0</span></div>
                 <div class="amount-display"><div class="amount-label">Total a Cobrar</div><div class="amount-value" id="netAmount">$0</div></div>
                 <div class="payment-row" id="commissionRow" style="display:none;background:#fff8e6;padding:12px;border-radius:8px;margin-top:10px;"><span class="payment-label">🤝 Comisión Planner</span><span class="payment-value" id="commissionAmount" style="color:var(--warning);">$0</span></div>
                 <div id="paymentSummary" style="margin-top:12px;padding:12px;background:var(--bg-cream);border-radius:12px;">
@@ -882,10 +895,25 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">6. Descuento (opcional)</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <div id="qqDiscountTypeBtns" style="display:flex;gap:4px;">
+                            <button type="button" class="pay-method-btn active" onclick="qqSetDiscountType('percent',this)">%</button>
+                            <button type="button" class="pay-method-btn" onclick="qqSetDiscountType('amount',this)">$</button>
+                        </div>
+                        <input type="number" class="form-input" id="qqDiscount" placeholder="10" oninput="qqUpdatePreview()" style="flex:1;">
+                    </div>
+                </div>
+
                 <div id="qqPreview" style="display:none;padding:14px;background:var(--bg-white);border-radius:12px;border:2px solid var(--primary);margin-bottom:14px;">
                     <div id="qqPreviewName" style="font-weight:700;font-size:1.05rem;margin-bottom:4px;"></div>
                     <div id="qqPreviewDesc" style="font-size:0.85rem;color:var(--text-medium);margin-bottom:8px;"></div>
                     <div id="qqPreviewIncludes" style="font-size:0.8rem;color:var(--text-medium);margin-bottom:10px;"></div>
+                    <div id="qqPreviewDiscount" style="display:none;font-size:0.85rem;padding-top:8px;border-top:1px solid var(--border);">
+                        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-medium);">Subtotal</span><span id="qqPreviewSubtotal"></span></div>
+                        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-medium);" id="qqPreviewDiscLabel">🎁 Descuento</span><span id="qqPreviewDiscAmount" style="color:var(--success);"></span></div>
+                    </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:2px solid var(--border);">
                         <span style="font-size:0.9rem;color:var(--text-medium);">TOTAL</span>
                         <span id="qqPreviewTotal" style="font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;color:var(--primary-dark);"></span>
@@ -1566,6 +1594,8 @@
                 otherVenue: document.getElementById('otherVenue').value,
                 guestCount: document.getElementById('guestCount').value,
                 totalPrice: document.getElementById('totalPrice').value,
+                discountType: currentDiscountType,
+                discountValue: (document.getElementById('discountValue')||{}).value || '',
                 hasPlanner: document.getElementById('hasPlanner').checked,
                 plannerName: document.getElementById('plannerName').value,
                 commissionRate: document.getElementById('commissionRate').value,
@@ -1587,6 +1617,7 @@
             document.getElementById('otherVenue').value = d.otherVenue||'';
             document.getElementById('guestCount').value = d.guestCount||'';
             document.getElementById('totalPrice').value = d.totalPrice||'';
+            applyDiscountUI(d.discountType, parseFloat(d.discountValue)||0);
             document.getElementById('hasPlanner').checked = d.hasPlanner||false;
             document.getElementById('plannerName').value = d.plannerName||'';
             document.getElementById('commissionRate').value = d.commissionRate||'10';
@@ -1616,6 +1647,7 @@
         document.getElementById('otherVenue').value = '';
         document.getElementById('guestCount').value = '';
         document.getElementById('totalPrice').value = '';
+        applyDiscountUI('percent', 0);
         document.getElementById('hasPlanner').checked = false;
         document.getElementById('plannerName').value = '';
         document.getElementById('commissionRate').value = '10';
@@ -1675,8 +1707,81 @@
         document.getElementById('commissionRow').style.display=hp?'flex':'none';
         calculatePayments();
     }
+    // ==================== DESCUENTOS / RISTOURNES ====================
+    // Le montant saisi dans le formulaire est le PRIX DE LISTE. La ristourne
+    // s'applique dessus, et totalPrice reste ce que le client paie reellement:
+    // tout le reste de l'app (CA, RESICO, acomptes, investissement, commission)
+    // continue donc de s'appuyer sur totalPrice sans rien changer.
+    let currentDiscountType = 'percent';
+
+    function computeDiscount(listPrice, type, value) {
+        const lp = listPrice > 0 ? listPrice : 0;
+        let v = parseFloat(value);
+        if (!isFinite(v) || v < 0) v = 0;
+        if (type === 'percent' && v > 100) v = 100;
+        let amount = type === 'amount' ? v : lp * v / 100;
+        // Arrondi au peso: les montants sont affiches sans centimes, un total
+        // stocke a 10837.5 pour 10838 affiche empeche un evenement d'etre
+        // exactement solde et fausse le "restante".
+        amount = Math.round(amount);
+        if (amount > lp) amount = lp; // jamais de total negatif
+        return { value: v, amount, total: lp - amount };
+    }
+
+    // Ristourne enregistree sur un evenement. Les evenements crees avant cette
+    // fonctionnalite n'ont pas de listPrice: leur prix de liste est leur total.
+    function eventDiscount(ev) {
+        if (!ev) return { value: 0, amount: 0, total: 0, listPrice: 0, label: '' };
+        const lp = ev.listPrice > 0 ? ev.listPrice : (ev.totalPrice || 0);
+        const d = computeDiscount(lp, ev.discountType || 'percent', ev.discountValue || 0);
+        return Object.assign(d, {
+            listPrice: lp,
+            label: ev.discountType === 'amount' ? formatCurrency(d.amount) : (d.value + '%')
+        });
+    }
+    function hasDiscount(ev) { return eventDiscount(ev).amount > 0; }
+
+    function setDiscountType(t, btn) {
+        currentDiscountType = t;
+        document.querySelectorAll('#discountTypeBtns .pay-method-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        const inp = document.getElementById('discountValue');
+        if (inp) inp.placeholder = t === 'percent' ? '10' : '2000';
+        calculatePayments();
+    }
+    // Remet les champs ristourne dans un etat donne (edition, brouillon, reset).
+    function applyDiscountUI(type, value) {
+        currentDiscountType = type === 'amount' ? 'amount' : 'percent';
+        const inp = document.getElementById('discountValue');
+        if (inp) {
+            inp.value = value > 0 ? value : '';
+            inp.placeholder = currentDiscountType === 'percent' ? '10' : '2000';
+        }
+        const wanted = currentDiscountType === 'percent' ? 0 : 1;
+        document.querySelectorAll('#discountTypeBtns .pay-method-btn').forEach((b, i) => b.classList.toggle('active', i === wanted));
+    }
+
     function calculatePayments() {
-        const tp=parseFloat(document.getElementById('totalPrice').value)||0;
+        // Prix de liste saisi, puis ristourne eventuelle.
+        const listPrice=parseFloat(document.getElementById('totalPrice').value)||0;
+        const dv=document.getElementById('discountValue');
+        const d=computeDiscount(listPrice, currentDiscountType, dv?dv.value:0);
+        const tp=d.total;
+        // Ligne "Descuento" affichee seulement s'il y en a une.
+        const dRow=document.getElementById('discountRow');
+        if(dRow){
+            dRow.style.display=d.amount>0?'flex':'none';
+            const dLbl=document.getElementById('discountRowLabel');
+            const dAmt=document.getElementById('discountRowAmount');
+            if(dLbl) dLbl.textContent='🎁 Descuento'+(currentDiscountType==='percent'?' ('+d.value+'%)':'');
+            if(dAmt) dAmt.textContent='-'+formatCurrency(d.amount);
+        }
+        const dList=document.getElementById('listPriceRow');
+        if(dList){
+            dList.style.display=d.amount>0?'flex':'none';
+            const lAmt=document.getElementById('listPriceAmount');
+            if(lAmt) lAmt.textContent=formatCurrency(listPrice);
+        }
         const hp=document.getElementById('hasPlanner').checked;
         const cr=parseFloat(document.getElementById('commissionRate').value)||10;
         const commission=hp?tp*(cr/100):0;
@@ -1694,9 +1799,11 @@
         // Payment summary
         const paid=currentPayments.reduce((s,p)=>s+(p.amount||0),0);
         const el1=document.getElementById('totalPaidDisplay'); if(el1) el1.textContent=formatCurrency(paid);
-        // Sans prix connu, on n'affiche pas un "restante" invente.
-        const el2=document.getElementById('remainingDisplay'); if(el2) el2.textContent=tp>0?formatCurrency(Math.max(0,tp-paid)):'Por definir';
-        const elNet=document.getElementById('netAmount'); if(elNet && tp<=0) elNet.textContent='Por definir';
+        // Sans prix connu, on n'affiche pas un "restante" invente. On se base sur
+        // le prix de liste: une ristourne de 100% donne bien un total de $0, pas
+        // un prix inconnu.
+        const el2=document.getElementById('remainingDisplay'); if(el2) el2.textContent=listPrice>0?formatCurrency(Math.max(0,tp-paid)):'Por definir';
+        const elNet=document.getElementById('netAmount'); if(elNet && listPrice<=0) elNet.textContent='Por definir';
     }
     function formatCurrency(a) { return '$'+a.toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0}); }
 
@@ -1950,7 +2057,14 @@
         const clientName=document.getElementById('clientName').value.trim();
         const clientPhone=document.getElementById('clientPhone').value.trim();
         const eventDate=document.getElementById('eventDate').value;
-        const totalPrice=parseFloat(document.getElementById('totalPrice').value)||0;
+        // Le champ prix contient le prix de liste; totalPrice est ce qui est
+        // facture apres ristourne.
+        const listPrice=parseFloat(document.getElementById('totalPrice').value)||0;
+        const _dv=document.getElementById('discountValue');
+        const disc=computeDiscount(listPrice, currentDiscountType, _dv?_dv.value:0);
+        const totalPrice=disc.total;
+        const discountValue=disc.value;
+        const discountType=currentDiscountType;
         // Le prix est optionnel: on doit pouvoir enregistrer un mariage des qu'on
         // a le nom et la date, et completer le montant plus tard.
         if(!clientName||!eventDate){showToast('Completa al menos: Nombre y Fecha','warning');return;}
@@ -1967,13 +2081,13 @@
             const idx=appData.events.findIndex(e=>e.id===editingEventId);
             if(idx!==-1){
                 const ex=appData.events[idx];
-                const upd={...ex,clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,notes:document.getElementById('eventNotes').value,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],status,updatedAt:new Date().toISOString()};
+                const upd={...ex,clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,listPrice,discountType,discountValue,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,notes:document.getElementById('eventNotes').value,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],status,updatedAt:new Date().toISOString()};
                 appData.events[idx]=upd; saveData(); saveEventToFirebase(upd);
                 editingEventId=null; clearFormData();
                 showToast('Evento actualizado!','success'); showEventDetail(upd.id); return;
             }
         }
-        const event={id:'local_'+Date.now(),clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,commissionPaid:false,notes:document.getElementById('eventNotes').value,status,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],createdAt:new Date().toISOString()};
+        const event={id:'local_'+Date.now(),clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,listPrice,discountType,discountValue,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,commissionPaid:false,notes:document.getElementById('eventNotes').value,status,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],createdAt:new Date().toISOString()};
         appData.events.push(event); saveData(); saveEventToFirebase(event);
         // If creating from a pending payment, remove it from the inbox
         if (_creatingEventFromPaymentId) {
@@ -2039,7 +2153,7 @@
             const pc=(ev.photos||[]).length;
             const cdBadge=cd.text?`<span class="countdown-badge ${cd.css}">${cd.text}</span>`:'';
             const montant=isPriceTBD(ev)?`<span style="font-size:0.8rem;color:var(--text-medium);">Por definir</span>`:formatCurrency(ev.totalPrice);
-            html+=`<div class="event-item" onclick="showEventDetail('${esc(ev.id)}')"><div class="event-icon">${si||'🎂'}</div><div class="event-details"><div class="event-name">${esc(ev.clientName)}${pc?' 📷':''}${cdBadge}</div><div class="event-date">${formatDate(ev.eventDate)} • ${esc(ev.venue||'Sin lugar')}</div></div><div class="event-amount"><div class="event-total">${montant}</div><div class="event-status"><span class="card-badge ${sb.c}">${sb.t}</span></div></div></div>`;
+            html+=`<div class="event-item" onclick="showEventDetail('${esc(ev.id)}')"><div class="event-icon">${si||'🎂'}</div><div class="event-details"><div class="event-name">${esc(ev.clientName)}${pc?' 📷':''}${hasDiscount(ev)?' 🎁':''}${cdBadge}</div><div class="event-date">${formatDate(ev.eventDate)} • ${esc(ev.venue||'Sin lugar')}</div></div><div class="event-amount"><div class="event-total">${montant}</div><div class="event-status"><span class="card-badge ${sb.c}">${sb.t}</span></div></div></div>`;
         });
         c.innerHTML=html;
         if(total>eventsDisplayed){
@@ -2153,6 +2267,8 @@
             ${liH}
 
             <div class="card"><div class="card-header"><h3 class="card-title">💰 Pagos</h3></div>
+            ${hasDiscount(ev)?`<div class="payment-row"><span class="payment-label">🏷️ Precio de lista</span><span class="payment-value">${formatCurrency(eventDiscount(ev).listPrice)}</span></div>
+            <div class="payment-row"><span class="payment-label">🎁 Descuento${ev.discountType==='amount'?'':' ('+eventDiscount(ev).value+'%)'}</span><span class="payment-value" style="color:var(--success);">-${formatCurrency(eventDiscount(ev).amount)}</span></div>`:''}
             <div class="amount-display"><div class="amount-label">Total del Evento</div><div class="amount-value">${isPriceTBD(ev)?'Por definir':formatCurrency(ev.totalPrice)}</div></div>
             <div style="margin-top:12px;display:flex;gap:10px;">
                 <div style="flex:1;text-align:center;padding:12px;background:#e8f5e9;border-radius:10px;"><div style="font-size:0.8rem;color:var(--text-medium);">Pagado</div><div style="font-size:1.2rem;font-weight:700;color:var(--success);">${formatCurrency(totalPaid)}</div></div>
@@ -2234,6 +2350,8 @@
         _savingEvent=true;
         ev.totalPrice=val;
         ev.netAmount=val;
+        ev.listPrice=val; // prix saisi directement, sans ristourne
+        ev.discountValue=0;
         ev.commission=ev.hasPlanner?val*((ev.commissionRate||0)/100):0;
         ev.status=calcStatus(ev.payments,val);
         saveData();
@@ -2251,7 +2369,10 @@
         document.getElementById('clientPhone').value=ev.clientPhone||'';
         document.getElementById('eventDate').value=ev.eventDate||'';
         document.getElementById('guestCount').value=ev.guestCount||'';
-        document.getElementById('totalPrice').value=ev.totalPrice||'';
+        // On reaffiche le prix de liste, pas le total apres ristourne.
+        const _ed=eventDiscount(ev);
+        document.getElementById('totalPrice').value=_ed.listPrice||'';
+        applyDiscountUI(ev.discountType, ev.discountValue||0);
         document.getElementById('eventNotes').value=ev.notes||'';
         const vs=document.getElementById('eventVenue');
         const kv=['Finca Paraíso','Hacienda de Cortés','Jardín Borda','Casa Lala','Jardín Las Mañanitas','Casa Isabella','Hacienda San Gabriel','Jardín Etnobotánico','Quinta Real Cuernavaca','Hacienda Cocoyoc','Hacienda San Antonio El Puente','Hacienda Temixco','Casa de Piedra Xochitepec','Jardín Tepoztlán','Domicilio del cliente'];
@@ -2635,7 +2756,9 @@
     function saveAsTemplate(eid) {
         const ev=appData.events.find(e=>e.id===eid);if(!ev)return;
         const name=prompt('Nombre del template:',ev.clientName+' - Template');if(!name)return;
-        const tpl={id:'tpl_'+Date.now(),name,services:ev.services||[],serviceDetails:ev.serviceDetails||{},totalPrice:ev.totalPrice,hasPlanner:ev.hasPlanner,plannerName:ev.plannerName,commissionRate:ev.commissionRate,venue:ev.venue,guestCount:ev.guestCount,notes:ev.notes,lineItems:ev.lineItems||[]};
+        // Un template garde le prix de liste: la ristourne est un geste ponctuel
+        // pour un client donne, elle n'a pas a etre rejouee a chaque reutilisation.
+        const tpl={id:'tpl_'+Date.now(),name,services:ev.services||[],serviceDetails:ev.serviceDetails||{},totalPrice:eventDiscount(ev).listPrice,hasPlanner:ev.hasPlanner,plannerName:ev.plannerName,commissionRate:ev.commissionRate,venue:ev.venue,guestCount:ev.guestCount,notes:ev.notes,lineItems:ev.lineItems||[]};
         appTemplates.push(tpl);
         safeSetItem('lpp_templates',JSON.stringify(appTemplates));
         saveTemplateToFirebase(tpl);
@@ -2781,7 +2904,18 @@
         // ====== TOTAL LINE (must stay above 2nd pink line at 216mm) ======
         // Separator before total
         doc.setDrawColor(180,130,120); doc.setLineWidth(0.5); doc.line(LM,y,RM,y);
-        y+=7;
+        y+=6;
+        // Ristourne: sous-total puis remise, avant le total facture.
+        const _pdfD=eventDiscount(ev);
+        if(_pdfD.amount>0){
+            doc.setFontSize(10); doc.setTextColor(120,100,90);
+            doc.text('Subtotal',CX+15,y,{align:'center'});
+            doc.text(formatCurrency(_pdfD.listPrice),178,y,{align:'center'});
+            y+=5;
+            doc.text('Descuento'+(ev.discountType==='amount'?'':' '+_pdfD.value+'%'),CX+15,y,{align:'center'});
+            doc.text('-'+formatCurrency(_pdfD.amount),178,y,{align:'center'});
+            y+=6;
+        } else { y+=1; }
         doc.setFontSize(12); doc.setTextColor(...brownDark);
         doc.text('TOTAL',CX+15,y,{align:'center'});
         doc.text(formatCurrency(ev.totalPrice),178,y,{align:'center'});
@@ -4072,7 +4206,12 @@
         if (isPriceTBD(ev)) { showToast('Primero pon el precio del evento', 'warning'); return; }
         const services = (ev.lineItems||[]).filter(li=>li.description && li.unitPrice>0).map(li=>`• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`).join('\n') || '';
 
-        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje.\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        // La ristourne doit se voir: c'est tout l'interet du geste commercial.
+        const _d = eventDiscount(ev);
+        const descuento = _d.amount > 0
+            ? `Subtotal: ${formatCurrency(_d.listPrice)}\n🎁 Descuento${ev.discountType==='amount'?'':' '+_d.value+'%'}: -${formatCurrency(_d.amount)}\n`
+            : '';
+        const msg = `Hola ${ev.clientName}! 🥐\n\nGracias por tu interés en La Petite Parisienne! Aquí va tu cotización:\n\n${services?services+'\n\n':''}${descuento}💰 Total: ${formatCurrency(ev.totalPrice)}\n\nIncluye transporte, montaje y desmontaje.\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(ev.clientPhone, msg);
     }
@@ -4158,12 +4297,29 @@
         const tier = pkg.tiers.find(t => t.guests === qqSelectedGuests);
         if (!tier) { preview.style.display = 'none'; return; }
 
-        const total = tier.fixed || (tier.price * tier.guests);
+        const subtotal = tier.fixed || (tier.price * tier.guests);
+        const d = computeDiscount(subtotal, qqDiscountType, (document.getElementById('qqDiscount')||{}).value);
         document.getElementById('qqPreviewName').textContent = pkg.icon + ' ' + pkg.name + ' — ' + qqSelectedGuests + ' invitados';
         document.getElementById('qqPreviewDesc').textContent = tier.note;
         document.getElementById('qqPreviewIncludes').textContent = pkg.includes;
-        document.getElementById('qqPreviewTotal').textContent = formatCurrency(total);
+        const dBox = document.getElementById('qqPreviewDiscount');
+        if (dBox) {
+            dBox.style.display = d.amount > 0 ? 'block' : 'none';
+            document.getElementById('qqPreviewSubtotal').textContent = formatCurrency(subtotal);
+            document.getElementById('qqPreviewDiscLabel').textContent = '🎁 Descuento' + (qqDiscountType === 'percent' ? ' (' + d.value + '%)' : '');
+            document.getElementById('qqPreviewDiscAmount').textContent = '-' + formatCurrency(d.amount);
+        }
+        document.getElementById('qqPreviewTotal').textContent = formatCurrency(d.total);
         preview.style.display = 'block';
+    }
+    let qqDiscountType = 'percent';
+    function qqSetDiscountType(t, btn) {
+        qqDiscountType = t;
+        document.querySelectorAll('#qqDiscountTypeBtns .pay-method-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        const inp = document.getElementById('qqDiscount');
+        if (inp) inp.placeholder = t === 'percent' ? '10' : '2000';
+        qqUpdatePreview();
     }
 
     function qqOnNameInput(val) {
@@ -4205,7 +4361,9 @@
         if (!tier) { showToast('Tier no encontrado', 'error'); return; }
 
         const isFixed = !!tier.fixed;
-        const total = isFixed ? tier.fixed : (tier.price * tier.guests);
+        const subtotal = isFixed ? tier.fixed : (tier.price * tier.guests);
+        const disc = computeDiscount(subtotal, qqDiscountType, (document.getElementById('qqDiscount')||{}).value);
+        const total = disc.total;
 
         // Build line items
         const lineItems = [
@@ -4235,6 +4393,9 @@
             serviceDetails: {},
             totalPrice: total,
             netAmount: total,
+            listPrice: subtotal,
+            discountType: qqDiscountType,
+            discountValue: disc.value,
             hasPlanner: false,
             plannerName: '',
             commissionRate: 0,
@@ -4261,7 +4422,11 @@
             `• ${li.description}: ${formatCurrency((li.unitPrice||0)*(li.quantity||1))}`
         ).join('\n');
 
-        const msg = `Hola ${clientName}! 🥐\n\nGracias por contactarnos! Aquí va tu cotización para ${qqSelectedGuests} invitados:\n\n${pkg.icon} ${pkg.name}\n${tier.note}\n\n${servicesText}\n\n💰 Total: ${formatCurrency(total)}\n\n📋 Incluye: ${pkg.includes}\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
+        const descuentoText = disc.amount > 0
+            ? `Subtotal: ${formatCurrency(subtotal)}\n🎁 Descuento${qqDiscountType==='amount'?'':' '+disc.value+'%'}: -${formatCurrency(disc.amount)}\n`
+            : '';
+
+        const msg = `Hola ${clientName}! 🥐\n\nGracias por contactarnos! Aquí va tu cotización para ${qqSelectedGuests} invitados:\n\n${pkg.icon} ${pkg.name}\n${tier.note}\n\n${servicesText}\n\n${descuentoText}💰 Total: ${formatCurrency(total)}\n\n📋 Incluye: ${pkg.includes}\n\n📌 Para apartar tu fecha: 50% de anticipo. El saldo restante se liquida una semana antes del evento.\n\nQuedo pendiente! ✨\n📱 ${MY_PHONE_DISPLAY}`;
 
         waOpenChat(clientPhone, msg);
 
@@ -4269,6 +4434,8 @@
         document.getElementById('qqName').value = '';
         document.getElementById('qqPhone').value = '';
         document.getElementById('qqPaquete').value = '';
+        const _qqd = document.getElementById('qqDiscount'); if (_qqd) _qqd.value = '';
+        qqSetDiscountType('percent', document.querySelector('#qqDiscountTypeBtns .pay-method-btn'));
         document.querySelectorAll('#qqGuestBtns .pay-method-btn').forEach(b => b.classList.remove('active'));
         qqSelectedGuests = null;
         document.getElementById('qqPreview').style.display = 'none';
@@ -4524,6 +4691,9 @@
                 serviceDetails:Object.assign({},ev.serviceDetails||{}),
                 totalPrice:ev.totalPrice,
                 netAmount:ev.totalPrice,
+                listPrice:ev.listPrice||ev.totalPrice,
+                discountType:ev.discountType||'percent',
+                discountValue:ev.discountValue||0,
                 hasPlanner:ev.hasPlanner,
                 plannerName:ev.plannerName||'',
                 commissionRate:ev.commissionRate||0,

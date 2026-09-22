@@ -577,6 +577,7 @@
                     <div class="menu-item" onclick="showServiceForm('postres')"><div class="menu-item-icon">🧁</div><div class="menu-item-title">Postres</div><div class="menu-item-subtitle">Cupcakes y más</div></div>
                     <div class="menu-item" onclick="showServiceForm('quesos')"><div class="menu-item-icon">🧀</div><div class="menu-item-title">Mesa de Quesos</div><div class="menu-item-subtitle">Gourmet</div></div>
                 </div>
+                <button class="btn btn-secondary" onclick="showSection('prices')" style="padding:12px;font-size:0.9rem;margin-top:12px;">🏷️ Precios de Paquetes</button>
                 <button class="btn btn-secondary" onclick="loadPdfTemplate()" style="padding:12px;font-size:0.9rem;margin-top:12px;" id="mainTemplateBtn">🖼️ Cargar Template PDF Cotización</button>
                 <div id="templateStatus" style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:6px;"></div>
             </details>
@@ -874,7 +875,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">4. Paquete</label>
+                    <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">4. Paquete <a href="#" onclick="showSection('prices');return false;" style="font-size:0.78rem;font-weight:600;color:var(--primary-dark);">🏷️ Editar precios</a></label>
                     <select class="form-select" id="qqPaquete" onchange="qqUpdatePreview()">
                         <option value="">Elige un paquete...</option>
                         <optgroup label="🍬 Mesa de Dulces">
@@ -982,6 +983,15 @@
                 <p style="font-size:0.78rem;color:var(--text-medium);margin:8px 0 12px;" id="invSetHint">El resto va a la cajita Nu.</p>
                 <button class="btn btn-primary" onclick="saveInvestSettings()" style="width:100%;">💾 Guardar Ajustes</button>
             </div>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
+        </section>
+
+        <!-- SECTION: Precios de paquetes -->
+        <section id="prices" class="section">
+            <div class="info-box"><span class="info-box-icon">💡</span> Estos precios se usan en <strong>Paquete Rápido</strong> y en la <strong>Cotización Rápida</strong>. Los eventos ya guardados no cambian.</div>
+            <div id="pricesList"></div>
+            <button class="btn btn-primary" onclick="savePrices()">💾 Guardar Precios</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="resetPrices()">↩️ Volver a los precios originales</button>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="goToMainMenu()">← Volver al Menú</button>
         </section>
 
@@ -1165,6 +1175,7 @@
     let unsubTemplates = null;
     let unsubSettings = null;
     let revenueChart = null;
+    let _photoJobsTimer = null;
 
     // ==================== DATA STORAGE ====================
     // Valeurs par defaut des reglages. Toute cle absente du cache ou de Firestore
@@ -1233,6 +1244,7 @@
             if (unsubTemplates) unsubTemplates();
             if (unsubSettings) unsubSettings();
             if (unsubPendingPay) unsubPendingPay();
+            if (unsubPdfTemplate) unsubPdfTemplate();
         }
     });
 
@@ -1297,6 +1309,7 @@
     function migrateEvent(ev) {
         if (!ev.payments) ev.payments = [];
         if (!ev.photos) ev.photos = [];
+        if (!ev.photoIds) ev.photoIds = [];
         if (!ev.lineItems) ev.lineItems = [];
         // Auto-calculate status from payments
         const paid = ev.payments.reduce((s,p)=>s+(p.amount||0),0);
@@ -1316,8 +1329,10 @@
         if (unsubSettings) { unsubSettings(); unsubSettings = null; }
         if (unsubPendingPay) { unsubPendingPay(); unsubPendingPay = null; }
         updateSyncStatus('syncing');
-        // Pending payments listener
+        // Template PDF (cloud) + pending payments listeners
+        setupPdfTemplateListener();
         setupPendingPaymentsListener();
+        checkPhotosCloud();
         // Events listener - update data always but debounce UI refresh
         unsubEvents = db.collection('dm_events').orderBy('eventDate','asc').onSnapshot({includeMetadataChanges:true}, snap => {
             const hasPending = snap.docs.some(d => d.metadata.hasPendingWrites);
@@ -1332,6 +1347,12 @@
             computeNotifications();
             initializeApp();
             updateQuickStats();
+            // Donnees confirmees par le serveur: deplacer d'eventuelles photos
+            // inline et precharger celles des evenements proches.
+            if (!snap.metadata.fromCache && !hasPending) {
+                clearTimeout(_photoJobsTimer);
+                _photoJobsTimer = setTimeout(() => { migrateInlinePhotos(); prefetchUpcomingPhotos(); }, 1500);
+            }
         }, err => {
             updateSyncStatus('error');
             showToast('Sin conexión — se muestran los datos guardados', 'error');
@@ -1520,15 +1541,7 @@
         if (ecat) ecat.innerHTML = expenseCatOptionsHTML('ingredientes');
         updateMonthDisplay();
         updateExpenseMonthDisplay();
-        // Update PDF template status
-        const ts=document.getElementById('templateStatus');
-        const mb=document.getElementById('mainTemplateBtn');
-        if(pdfTemplateImg){
-            if(ts) ts.textContent='✅ Template cargado';
-            if(mb) mb.innerHTML='🖼️ ✅ Template PDF cargado (cambiar)';
-        } else {
-            if(ts) ts.textContent='⚠️ Carga tu imagen de cotización para generar PDFs bonitos';
-        }
+        updateTemplateStatusUI();
     }
 
     // Called on each snapshot - debounced to avoid rapid re-renders
@@ -1616,6 +1629,7 @@
             const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=todayISO();
         }
         else if (sectionId==='investments') renderInvestments();
+        else if (sectionId==='prices') renderPrices();
         computeNotifications();
         window.scrollTo(0,0);
     }
@@ -1663,7 +1677,7 @@
             document.getElementById('eventNotes').value = d.eventNotes||'';
             selectedServices = d.selectedServices||[];
             currentPayments = d.payments||[];
-            formPhotos = d.photos||[];
+            formPhotos = (d.photos||[]).map(p => typeof p === 'string' ? {id:null, data:p} : p);
             lineItems = d.lineItems||[];
             document.querySelectorAll('.service-card').forEach(c => {
                 c.classList.toggle('selected', selectedServices.includes(c.dataset.service));
@@ -1879,44 +1893,169 @@
     const PHOTO_MAX_BYTES = 150000;   // par photo (base64)
     const PHOTO_BUDGET_BYTES = 700000; // total par evenement, marge sous la limite Firestore
 
-    function compressImage(file, cb) {
+    // opts: max = plus grand cote en px, maxBytes = taille base64 visee,
+    // q = qualite JPEG de depart. Par defaut: reglages des photos d'evenement.
+    function compressImage(file, cb, opts) {
+        const o=Object.assign({max:800, maxBytes:PHOTO_MAX_BYTES, q:0.6}, opts||{});
         const r=new FileReader(); r.onload=function(e){
             const img=new Image(); img.onload=function(){
-                const max=800; let w=img.width,h=img.height;
+                const max=o.max; let w=img.width,h=img.height;
                 if(w>max||h>max){if(w>h){h=h*(max/w);w=max;}else{w=w*(max/h);h=max;}}
                 const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
-                canvas.getContext('2d').drawImage(img,0,0,w,h);
+                const ctx=canvas.getContext('2d');
+                // Fond blanc: un PNG transparent devenait noir une fois converti en JPEG.
+                ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+                ctx.drawImage(img,0,0,w,h);
                 // Baisse la qualite par paliers jusqu'a passer sous le budget.
-                let q=0.6, data=canvas.toDataURL('image/jpeg',q);
-                while(data.length>PHOTO_MAX_BYTES && q>0.25){ q-=0.1; data=canvas.toDataURL('image/jpeg',q); }
+                let q=o.q, data=canvas.toDataURL('image/jpeg',q);
+                while(data.length>o.maxBytes && q>0.25){ q-=0.1; data=canvas.toDataURL('image/jpeg',q); }
                 cb(data);
             }; img.src=e.target.result;
         }; r.readAsDataURL(file);
     }
+    // ---- Photos stockees a part: collection dm_photos ----
+    // Avant, les photos (base64) vivaient DANS le document de l'evenement:
+    // chaque modif renvoyait jusqu'a 700 Ko, toute la liste des evenements se
+    // telechargeait avec ses photos et le cache local saturait. Maintenant:
+    // un document par photo dans dm_photos, l'evenement ne garde que photoIds,
+    // et une photo n'est chargee que quand on ouvre la fiche (ou a l'avance pour
+    // les evenements des 14 prochains jours, pour les avoir hors ligne sur place).
+    // Firebase Storage aurait exige le forfait payant.
+    //
+    // Compatibilite: tant que les regles Firestore n'autorisent pas dm_photos
+    // (photosCloudReady=false), on continue en mode "inline" comme avant. Les
+    // anciennes photos inline restent affichees et sont deplacees par
+    // migrateInlinePhotos(), dans une transaction: photo ecrite ET retiree de
+    // l'evenement en une seule operation, jamais l'un sans l'autre.
+    const photoStore = {};  // id -> data URL deja chargee
+    let photosCloudReady = localStorage.getItem('lpp_photos_cloud_ok') === '1';
+    let _photoMigrationRunning = false;
+    let _detailPhotos = []; // entrees photo de la fiche affichee
+
     function photosWeight(list) { return (list||[]).reduce((s,p)=>s+(p?p.length:0),0); }
+    // Empreinte courte d'une photo: id stable pour la migration (la relancer
+    // reecrit le meme document au lieu d'en creer un nouveau).
+    function photoHash(s) { let h=0x811c9dc5; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0).toString(36); }
+    // Photos d'un evenement sous forme {id, data}. id=null: ancienne photo inline.
+    function eventPhotoEntries(ev) {
+        if(!ev) return [];
+        const cloud=(ev.photoIds||[]).map(id=>({id, data:photoStore[id]||null}));
+        const inline=(ev.photos||[]).filter(p=>safeImgSrc(p)).map(data=>({id:null, data}));
+        return cloud.concat(inline);
+    }
+    function eventPhotoCount(ev) { return ((ev&&ev.photoIds)||[]).length+((ev&&ev.photos)||[]).length; }
+    // Charge les photos manquantes. Hors ligne, Firestore repond depuis son cache.
+    function loadPhotos(ids) {
+        const missing=(ids||[]).filter(id=>id && !photoStore[id]);
+        return Promise.all(missing.map(id=>db.collection('dm_photos').doc(id).get()
+            .then(snap=>{ const d=snap.exists?safeImgSrc((snap.data()||{}).data):''; if(d) photoStore[id]=d; })
+            .catch(()=>{})));
+    }
+    // Verifie (lecture serveur) que les regles autorisent dm_photos.
+    function checkPhotosCloud() {
+        db.collection('dm_photos').limit(1).get({source:'server'}).then(()=>{
+            photosCloudReady=true; safeSetItem('lpp_photos_cloud_ok','1');
+            migrateInlinePhotos();
+        }).catch(err=>{
+            if(err && err.code==='permission-denied'){ photosCloudReady=false; try{localStorage.removeItem('lpp_photos_cloud_ok');}catch(e){} }
+        });
+    }
+    // Deplace les photos inline des evenements vers dm_photos (en ligne seulement).
+    async function migrateInlinePhotos() {
+        if(!photosCloudReady || _photoMigrationRunning || !navigator.onLine) return;
+        const todo=appData.events.filter(e=>e.id && !String(e.id).startsWith('local_') && (e.photos||[]).length>0).map(e=>e.id);
+        if(!todo.length) return;
+        _photoMigrationRunning=true;
+        try {
+            for(const id of todo){
+                try {
+                    const ref=db.collection('dm_events').doc(id);
+                    await db.runTransaction(async t=>{
+                        const snap=await t.get(ref);
+                        if(!snap.exists) return;
+                        const d=snap.data()||{};
+                        const inline=(d.photos||[]).filter(p=>safeImgSrc(p));
+                        if(!inline.length) return;
+                        const ids=(d.photoIds||[]).slice();
+                        inline.forEach(data=>{
+                            const pid=id+'_'+photoHash(data);
+                            t.set(db.collection('dm_photos').doc(pid),{eventId:id, data, createdAt:new Date().toISOString()});
+                            photoStore[pid]=data;
+                            if(!ids.includes(pid)) ids.push(pid);
+                        });
+                        t.update(ref,{photoIds:ids, photos:(d.photos||[]).filter(p=>!safeImgSrc(p))});
+                    });
+                } catch(e) {
+                    console.warn('Fotos no migradas para '+id, e&&e.code);
+                    if(e && e.code==='permission-denied') break;
+                }
+            }
+        } finally { _photoMigrationRunning=false; }
+    }
+    // Precharge les photos des evenements proches: utiles sur place, sans reseau.
+    function prefetchUpcomingPhotos() {
+        if(!photosCloudReady || !navigator.onLine) return;
+        const today=parseLocalDate(todayISO()), limit=new Date(today); limit.setDate(limit.getDate()+14);
+        const ids=[];
+        appData.events.forEach(e=>{ const d=parseLocalDate(e.eventDate); if(d && d>=today && d<=limit) ids.push(...(e.photoIds||[])); });
+        if(ids.length) loadPhotos(ids);
+    }
+    // Prepare l'enregistrement des photos du formulaire. Les ecritures sont
+    // faites ensuite par commitPhotoPlan(), une fois l'id definitif de
+    // l'evenement connu (saveEventToFirebase l'attribue).
+    function planFormPhotos(previousIds) {
+        if(!photosCloudReady){
+            // Mode inline (regles pas encore a jour): comme avant.
+            return { photoIds:formPhotos.filter(p=>p.id).map(p=>p.id), photos:formPhotos.filter(p=>!p.id && p.data).map(p=>p.data), toWrite:[], toDelete:[] };
+        }
+        const ids=[], toWrite=[];
+        formPhotos.forEach(p=>{
+            if(p.id){ ids.push(p.id); return; }
+            if(!p.data) return;
+            const pid=db.collection('dm_photos').doc().id;
+            photoStore[pid]=p.data;
+            toWrite.push({pid, data:p.data});
+            ids.push(pid);
+        });
+        const toDelete=(previousIds||[]).filter(id=>!ids.includes(id));
+        return { photoIds:ids, photos:[], toWrite, toDelete };
+    }
+    function commitPhotoPlan(plan, eventId) {
+        plan.toWrite.forEach(w=>db.collection('dm_photos').doc(w.pid).set({eventId, data:w.data, createdAt:new Date().toISOString()})
+            .catch(()=>showToast('Una foto no se pudo guardar en la nube','error',5000)));
+        plan.toDelete.forEach(id=>db.collection('dm_photos').doc(id).delete().catch(()=>{}));
+    }
+
     function addFormPhoto() {
         if(formPhotos.length>=5){showToast('Máximo 5 fotos','warning');return;}
         const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
         inp.onchange=function(){if(inp.files[0])compressImage(inp.files[0],data=>{
-            if(photosWeight(formPhotos)+data.length>PHOTO_BUDGET_BYTES){
+            // Le budget par evenement ne concerne que le mode inline: en mode
+            // cloud chaque photo a son propre document.
+            if(!photosCloudReady && photosWeight(formPhotos.filter(p=>!p.id).map(p=>p.data))+data.length>PHOTO_BUDGET_BYTES){
                 showToast('Las fotos pesan demasiado. Elimina una antes de agregar otra.','warning',4000);
                 return;
             }
-            formPhotos.push(data);renderFormPhotos();
+            formPhotos.push({id:null, data});renderFormPhotos();
         });};
         inp.click();
     }
     function removeFormPhoto(i) { formPhotos.splice(i,1); renderFormPhotos(); }
+    function photoThumbHTML(p, onclick) {
+        const src=safeImgSrc(p.data);
+        return src ? `<img src="${src}" class="photo-thumb" onclick="${onclick}">`
+                   : `<div class="photo-thumb" style="display:inline-flex;align-items:center;justify-content:center;background:var(--bg-cream);color:var(--text-light);">⏳</div>`;
+    }
     function renderFormPhotos() {
         const c=document.getElementById('formPhotos'); if(!c)return;
         const pc=document.getElementById('photoCount'); if(pc) pc.textContent=formPhotos.length+'/5';
-        c.innerHTML=formPhotos.map((p,i)=>`<div style="position:relative;display:inline-block;"><img src="${safeImgSrc(p)}" class="photo-thumb" onclick="viewPhoto(${i},'form')"><button onclick="removeFormPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;font-size:0.7rem;cursor:pointer;">×</button></div>`).join('')+(formPhotos.length<5?'<div class="photo-add-btn" onclick="addFormPhoto()">+</div>':'');
+        c.innerHTML=formPhotos.map((p,i)=>`<div style="position:relative;display:inline-block;">${photoThumbHTML(p,`viewPhoto(${i},'form')`)}<button onclick="removeFormPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;font-size:0.7rem;cursor:pointer;">×</button></div>`).join('')+(formPhotos.length<5?'<div class="photo-add-btn" onclick="addFormPhoto()">+</div>':'');
     }
     function viewPhoto(i,src) {
-        const photos = src==='form' ? formPhotos : (appData.events.find(e=>e.id===currentEventId)||{}).photos||[];
-        if(!photos[i])return;
+        const p=(src==='form'?formPhotos:_detailPhotos)[i]; if(!p)return;
+        const data=safeImgSrc(p.data||photoStore[p.id]); if(!data)return;
         document.getElementById('photoFullModal').style.display='block';
-        document.getElementById('photoFullModal').innerHTML=`<div class="photo-full-modal" onclick="closePhotoModal()"><img src="${safeImgSrc(photos[i])}" style="max-width:95%;max-height:90%;object-fit:contain;border-radius:8px;"><div style="position:absolute;top:20px;right:20px;color:white;font-size:2rem;cursor:pointer;">✕</div></div>`;
+        document.getElementById('photoFullModal').innerHTML=`<div class="photo-full-modal" onclick="closePhotoModal()"><img src="${data}" style="max-width:95%;max-height:90%;object-fit:contain;border-radius:8px;"><div style="position:absolute;top:20px;right:20px;color:white;font-size:2rem;cursor:pointer;">✕</div></div>`;
     }
     function closePhotoModal() { document.getElementById('photoFullModal').style.display='none'; document.getElementById('photoFullModal').innerHTML=''; }
 
@@ -1984,6 +2123,94 @@
         }
     };
 
+    // ==================== PRECIOS EDITABLES ====================
+    // CATALOG ci-dessus = prix d'origine. Les prix modifies dans l'ecran
+    // "Precios" sont stockes dans appData.settings.catalog (doc dm_settings/main,
+    // synchronise entre appareils) et se superposent au catalogue d'origine.
+    // Tout ce qui cote (paquete rapide, cotizacion rapida) passe par getCatalog().
+    function getCatalog() {
+        const ov = (appData.settings && appData.settings.catalog) || {};
+        const out = {};
+        Object.keys(CATALOG).forEach(k => {
+            const base = CATALOG[k], o = ov[k] || {};
+            out[k] = Object.assign({}, base, {
+                includes: (typeof o.includes === 'string' && o.includes.trim()) ? o.includes.trim() : base.includes,
+                tiers: base.tiers.map((t, i) => {
+                    const ot = (Array.isArray(o.tiers) && o.tiers[i]) || {};
+                    const nt = Object.assign({}, t);
+                    const v = parseFloat(ot.value);
+                    if (isFinite(v) && v > 0) { if (t.fixed) nt.fixed = v; else nt.price = v; }
+                    if (typeof ot.note === 'string' && ot.note.trim()) nt.note = ot.note.trim();
+                    return nt;
+                })
+            });
+        });
+        return out;
+    }
+    function tierPriceLabel(t) { return t.fixed ? formatCurrency(t.fixed) : formatCurrency(t.price) + '/pax'; }
+
+    function renderPrices() {
+        const c = document.getElementById('pricesList'); if (!c) return;
+        const cat = getCatalog();
+        c.innerHTML = Object.keys(cat).map(k => {
+            const p = cat[k];
+            const rows = p.tiers.map((t, i) => `<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;">
+                    <div style="width:62px;flex-shrink:0;padding-top:10px;font-weight:700;font-size:0.9rem;">${esc(t.guests)} inv.</div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <input type="number" class="form-input price-input" data-pkg="${esc(k)}" data-tier="${i}" value="${esc(t.fixed || t.price)}" min="1" style="padding:10px;">
+                            <span style="font-size:0.8rem;color:var(--text-medium);white-space:nowrap;">${t.fixed ? 'total' : '/ persona'}</span>
+                        </div>
+                        <input type="text" class="form-input price-note" data-pkg="${esc(k)}" data-tier="${i}" value="${esc(t.note)}" placeholder="Qué incluye este nivel" style="padding:8px;font-size:0.85rem;margin-top:4px;">
+                    </div>
+                </div>`).join('');
+            return `<div class="card">
+                <div class="card-header"><h3 class="card-title">${p.icon} ${esc(p.name)}</h3></div>
+                ${rows}
+                <label class="form-label" style="font-size:0.8rem;margin:10px 0 4px;">Incluye (texto de la cotización)</label>
+                <textarea class="form-textarea price-includes" data-pkg="${esc(k)}" style="min-height:70px;font-size:0.85rem;">${esc(p.includes)}</textarea>
+            </div>`;
+        }).join('');
+    }
+    function savePrices() {
+        const ov = {};
+        let bad = false;
+        Object.keys(CATALOG).forEach(k => {
+            const base = CATALOG[k];
+            const entry = { tiers: base.tiers.map(() => ({})) };
+            base.tiers.forEach((t, i) => {
+                const vEl = document.querySelector('.price-input[data-pkg="' + k + '"][data-tier="' + i + '"]');
+                const nEl = document.querySelector('.price-note[data-pkg="' + k + '"][data-tier="' + i + '"]');
+                const v = parseFloat(vEl ? vEl.value : '');
+                if (!isFinite(v) || v <= 0) { bad = true; return; }
+                // On ne stocke que ce qui differe du prix d'origine.
+                if (v !== (t.fixed || t.price)) entry.tiers[i].value = v;
+                const note = nEl ? nEl.value.trim() : '';
+                if (note && note !== t.note) entry.tiers[i].note = note;
+            });
+            const incEl = document.querySelector('.price-includes[data-pkg="' + k + '"]');
+            const inc = incEl ? incEl.value.trim() : '';
+            if (inc && inc !== base.includes) entry.includes = inc;
+            if (entry.includes || entry.tiers.some(t => Object.keys(t).length)) ov[k] = entry;
+        });
+        if (bad) { showToast('Cada precio debe ser mayor que 0', 'warning'); return; }
+        if (!appData.settings) appData.settings = {};
+        if (Object.keys(ov).length) appData.settings.catalog = ov; else delete appData.settings.catalog;
+        saveData();
+        saveSettingsToFirebase();
+        renderPrices();
+        showToast('Precios guardados — se usan en todas las cotizaciones nuevas', 'success', 4000);
+    }
+    function resetPrices() {
+        showConfirm('Precios originales', 'Se vuelven a poner todos los precios y textos de origen.', '↩️', function() {
+            if (appData.settings) delete appData.settings.catalog;
+            saveData();
+            saveSettingsToFirebase();
+            renderPrices();
+            showToast('Precios originales restablecidos', 'info');
+        }, 'Restablecer', 'btn-primary');
+    }
+
     let selectedCatalogTier = null;
 
     function showCatalogOptions() {
@@ -1994,13 +2221,13 @@
         optDiv.style.display='block';
         prevDiv.style.display='none';
         selectedCatalogTier=null;
-        const pkg=CATALOG[sel]; if(!pkg)return;
+        const pkg=getCatalog()[sel]; if(!pkg)return;
         const btnsDiv=document.getElementById('catalogGuestBtns');
-        btnsDiv.innerHTML=pkg.tiers.map((t,i)=>`<button class="pay-method-btn" onclick="selectCatalogTier('${sel}',${i})" id="tierBtn${i}" style="flex:1;padding:12px;text-align:center;"><div style="font-weight:700;font-size:1.1rem;">${t.guests}</div><div style="font-size:0.8rem;">invitados</div><div style="font-weight:700;color:var(--primary-dark);margin-top:4px;">${t.fixed?formatCurrency(t.fixed):'$'+t.price+'/pax'}</div></button>`).join('');
+        btnsDiv.innerHTML=pkg.tiers.map((t,i)=>`<button class="pay-method-btn" onclick="selectCatalogTier('${esc(sel)}',${i})" id="tierBtn${i}" style="flex:1;padding:12px;text-align:center;"><div style="font-weight:700;font-size:1.1rem;">${t.guests}</div><div style="font-size:0.8rem;">invitados</div><div style="font-weight:700;color:var(--primary-dark);margin-top:4px;">${tierPriceLabel(t)}</div></button>`).join('');
     }
 
     function selectCatalogTier(pkgKey,tierIdx) {
-        const pkg=CATALOG[pkgKey]; if(!pkg)return;
+        const pkg=getCatalog()[pkgKey]; if(!pkg)return;
         selectedCatalogTier={pkg:pkgKey,tier:tierIdx};
         // Highlight selected button
         document.querySelectorAll('#catalogGuestBtns .pay-method-btn').forEach((b,i)=>{b.classList.toggle('active',i===tierIdx);});
@@ -2009,14 +2236,14 @@
         const total=t.fixed||(t.price*t.guests);
         const prevDiv=document.getElementById('catalogPreview');
         prevDiv.style.display='block';
-        prevDiv.innerHTML=`<div style="font-weight:700;font-size:1.05rem;margin-bottom:6px;">${pkg.icon} ${pkg.name}</div><div style="font-size:0.9rem;color:var(--text-medium);margin-bottom:4px;">${t.note}</div><div style="font-size:0.85rem;color:var(--text-medium);margin-bottom:8px;">${pkg.includes}</div><div style="font-weight:700;font-size:1.2rem;color:var(--primary-dark);">Total: ${formatCurrency(total)}</div>`;
+        prevDiv.innerHTML=`<div style="font-weight:700;font-size:1.05rem;margin-bottom:6px;">${pkg.icon} ${esc(pkg.name)}</div><div style="font-size:0.9rem;color:var(--text-medium);margin-bottom:4px;">${esc(t.note)}</div><div style="font-size:0.85rem;color:var(--text-medium);margin-bottom:8px;">${esc(pkg.includes)}</div><div style="font-weight:700;font-size:1.2rem;color:var(--primary-dark);">Total: ${formatCurrency(total)}</div>`;
     }
 
     function applyCatalogToLines() {
         if(!selectedCatalogTier){showToast('Selecciona un número de invitados primero','warning');return;}
         const pkgKey=selectedCatalogTier.pkg;
         const tierIdx=selectedCatalogTier.tier;
-        const pkg=CATALOG[pkgKey]; if(!pkg)return;
+        const pkg=getCatalog()[pkgKey]; if(!pkg)return;
         const t=pkg.tiers[tierIdx];
         const isFixed=!!t.fixed;
         const total=isFixed?t.fixed:(t.price*t.guests);
@@ -2125,14 +2352,21 @@
             const idx=appData.events.findIndex(e=>e.id===editingEventId);
             if(idx!==-1){
                 const ex=appData.events[idx];
-                const upd={...ex,clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,listPrice,discountType,discountValue,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,notes:document.getElementById('eventNotes').value,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],status,updatedAt:new Date().toISOString()};
+                const upd={...ex,clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,listPrice,discountType,discountValue,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,notes:document.getElementById('eventNotes').value,payments:[...currentPayments],lineItems:[...lineItems],status,updatedAt:new Date().toISOString()};
+                const _ph=planFormPhotos(ex.photoIds);
+                upd.photoIds=_ph.photoIds; upd.photos=_ph.photos;
                 appData.events[idx]=upd; saveData(); saveEventToFirebase(upd);
+                commitPhotoPlan(_ph, upd.id);
                 editingEventId=null; clearFormData();
                 showToast('Evento actualizado!','success'); showEventDetail(upd.id); return;
             }
         }
-        const event={id:'local_'+Date.now(),clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,listPrice,discountType,discountValue,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,commissionPaid:false,notes:document.getElementById('eventNotes').value,status,payments:[...currentPayments],photos:[...formPhotos],lineItems:[...lineItems],createdAt:new Date().toISOString()};
+        const event={id:'local_'+Date.now(),clientName,clientPhone,eventDate,venue,guestCount:parseInt(document.getElementById('guestCount').value)||0,services:[...selectedServices],serviceDetails,totalPrice,netAmount:totalPrice,listPrice,discountType,discountValue,hasPlanner,plannerName:hasPlanner?document.getElementById('plannerName').value:'',commissionRate:hasPlanner?commissionRate:0,commission,commissionPaid:false,notes:document.getElementById('eventNotes').value,status,payments:[...currentPayments],lineItems:[...lineItems],createdAt:new Date().toISOString()};
+        const _ph=planFormPhotos([]);
+        event.photoIds=_ph.photoIds; event.photos=_ph.photos;
         appData.events.push(event); saveData(); saveEventToFirebase(event);
+        // saveEventToFirebase a remplace l'id local_ par l'id Firestore definitif.
+        commitPhotoPlan(_ph, event.id);
         // If creating from a pending payment, remove it from the inbox
         if (_creatingEventFromPaymentId) {
             const _ppid = _creatingEventFromPaymentId;
@@ -2194,7 +2428,7 @@
             if(isProspect(ev)) sb={c:'badge-prospect',t:'Cotización'};
             else if(isPriceTBD(ev)) sb={c:'badge-tbd',t:'Falta precio'};
             const si=(ev.services||[]).map(s=>({pastel:'🎂',mesa_dulces:'🍬',postres:'🧁',quesos:'🧀',bebidas:'🥂',otro:'📦'}[s]||'📦')).join('');
-            const pc=(ev.photos||[]).length;
+            const pc=eventPhotoCount(ev);
             const cdBadge=cd.text?`<span class="countdown-badge ${cd.css}">${cd.text}</span>`:'';
             const montant=isPriceTBD(ev)?`<span style="font-size:0.8rem;color:var(--text-medium);">Por definir</span>`:formatCurrency(ev.totalPrice);
             html+=`<div class="event-item" onclick="showEventDetail('${esc(ev.id)}')"><div class="event-icon">${si||'🎂'}</div><div class="event-details"><div class="event-name">${esc(ev.clientName)}${pc?' 📷':''}${hasDiscount(ev)?' 🎁':''}${cdBadge}</div><div class="event-date">${formatDate(ev.eventDate)} • ${esc(ev.venue||'Sin lugar')}</div></div><div class="event-amount"><div class="event-total">${montant}</div><div class="event-status"><span class="card-badge ${sb.c}">${sb.t}</span></div></div></div>`;
@@ -2258,7 +2492,8 @@
         const mi={'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
         const payH=(ev.payments||[]).map(p=>`<div class="payment-history-item"><div><strong>${mi[p.method]||'💵'} ${formatCurrency(p.amount)}</strong><br><small style="color:var(--text-medium);">${formatDate(p.date)}${p.note?' - '+esc(p.note):''}</small></div></div>`).join('');
         const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
-        const photoH=(ev.photos||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📷 Fotos</h3></div><div class="photo-scroll">${ev.photos.map((p,i)=>`<img src="${safeImgSrc(p)}" class="photo-thumb" onclick="viewPhoto(${i},'detail')">`).join('')}</div></div>`:'';
+        _detailPhotos=eventPhotoEntries(ev);
+        const photoH=_detailPhotos.length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📷 Fotos</h3></div><div class="photo-scroll" id="detailPhotoScroll">${_detailPhotos.map((p,i)=>photoThumbHTML(p,`viewPhoto(${i},'detail')`)).join('')}</div></div>`:'';
         const liH=(ev.lineItems||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📋 Cotización</h3></div><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:8px;color:var(--text-medium);font-weight:600;">Descripción</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Precio</th><th style="text-align:center;padding:8px;color:var(--text-medium);font-weight:600;">Qtd</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Total</th></tr>${ev.lineItems.map(li=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">${esc(li.description||'-')}${li.note?'<br><small style="color:var(--text-medium);">'+esc(li.note)+'</small>':''}</td><td style="text-align:right;padding:8px;">${formatCurrency(li.unitPrice||0)}</td><td style="text-align:center;padding:8px;">${esc(li.quantity||1)}</td><td style="text-align:right;padding:8px;font-weight:600;">${formatCurrency((li.unitPrice||0)*(li.quantity||1))}</td></tr>`).join('')}<tr><td colspan="3" style="text-align:right;padding:10px 8px;font-weight:700;">TOTAL</td><td style="text-align:right;padding:10px 8px;font-weight:700;font-size:1.1rem;">${formatCurrency(ev.lineItems.reduce((s,li)=>s+(li.unitPrice||0)*(li.quantity||1),0))}</td></tr></table></div>`:'';
         // Pre-build quick payment and client history sections
         const quickPayHtml=buildQuickPaySection(ev);
@@ -2355,6 +2590,15 @@
             <button class="btn btn-danger" style="margin-top:10px;" onclick="deleteEvent('${esc(ev.id)}')">🗑️ Eliminar Evento</button>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="showSection('events')">← Volver a Eventos</button>`;
         showSection('eventDetail');
+        // Photos stockees a part: chargees a l'ouverture de la fiche.
+        if(_detailPhotos.some(p=>!p.data)){
+            loadPhotos(ev.photoIds).then(()=>{
+                if(currentEventId!==eventId) return;
+                _detailPhotos=eventPhotoEntries(ev);
+                const box=document.getElementById('detailPhotoScroll');
+                if(box) box.innerHTML=_detailPhotos.map((p,i)=>photoThumbHTML(p,`viewPhoto(${i},'detail')`)).join('');
+            });
+        }
     }
 
     let _savingEvent = false;
@@ -2404,7 +2648,7 @@
         computeNotifications();
         showEventDetail(eid);
     }
-    function deleteEvent(eid) { showConfirm('Eliminar Evento','Este evento será eliminado permanentemente.','🗑️',function(){appData.events=appData.events.filter(e=>e.id!==eid);saveData();deleteEventFromFirebase(eid);showToast('Evento eliminado','info');showSection('events');},'Eliminar','btn-danger'); }
+    function deleteEvent(eid) { showConfirm('Eliminar Evento','Este evento será eliminado permanentemente.','🗑️',function(){const _del=appData.events.find(e=>e.id===eid);((_del&&_del.photoIds)||[]).forEach(id=>db.collection('dm_photos').doc(id).delete().catch(()=>{}));appData.events=appData.events.filter(e=>e.id!==eid);saveData();deleteEventFromFirebase(eid);showToast('Evento eliminado','info');showSection('events');},'Eliminar','btn-danger'); }
     function editEvent(eid) {
         const ev=appData.events.find(e=>e.id===eid);if(!ev)return;
         editingEventId=eid;
@@ -2433,7 +2677,8 @@
         document.getElementById('serviceDetails').innerHTML='';
         updateServiceDetails();
         if(ev.serviceDetails) Object.entries(ev.serviceDetails).forEach(([s,d])=>{const el=document.getElementById('service_'+s+'_details');if(el)el.value=d;});
-        currentPayments=[...(ev.payments||[])]; formPhotos=[...(ev.photos||[])]; lineItems=(ev.lineItems||[]).map(li=>({...li}));
+        currentPayments=[...(ev.payments||[])]; formPhotos=eventPhotoEntries(ev);
+        loadPhotos(ev.photoIds).then(()=>{ if(editingEventId!==eid) return; formPhotos.forEach(p=>{ if(p.id && !p.data) p.data=photoStore[p.id]||null; }); renderFormPhotos(); }); lineItems=(ev.lineItems||[]).map(li=>({...li}));
         calculatePayments(); renderFormPayments(); renderFormPhotos(); renderLineItems();
         showSection('newEvent');
     }
@@ -2852,28 +3097,54 @@
     function closeTemplatePicker() { document.getElementById('templateModal').style.display='none'; }
 
     // ==================== PDF TEMPLATE IMAGE ====================
-    let pdfTemplateImg = localStorage.getItem('lpp_pdf_template') || null;
+    // Le template vivait uniquement dans le localStorage du telephone qui l'avait
+    // charge: sur tout autre appareil (ou apres un nettoyage du cache), impossible
+    // de generer un PDF. Il est maintenant dans le cloud (doc dm_settings/pdf_template,
+    // a part du doc des reglages pour ne pas l'alourdir) et le localStorage ne
+    // sert plus que de cache hors ligne.
+    let pdfTemplateImg = safeImgSrc(localStorage.getItem('lpp_pdf_template')) || null;
+    let unsubPdfTemplate = null;
+    const PDF_TEMPLATE_MAX_BYTES = 700000; // base64, sous la limite de 1 Mio d'un doc Firestore
+
+    function updateTemplateStatusUI() {
+        const ts=document.getElementById('templateStatus');
+        const mb=document.getElementById('mainTemplateBtn');
+        if(ts) ts.textContent=pdfTemplateImg?'✅ Template cargado (sincronizado en la nube)':'⚠️ Carga tu imagen de cotización para generar PDFs bonitos';
+        if(mb) mb.innerHTML=pdfTemplateImg?'🖼️ ✅ Template PDF cargado (cambiar)':'🖼️ Cargar Template PDF Cotización';
+    }
+    function uploadPdfTemplate(data) {
+        return db.collection('dm_settings').doc('pdf_template').set({ image: data, updatedAt: new Date().toISOString() });
+    }
+    function setupPdfTemplateListener() {
+        if (unsubPdfTemplate) { unsubPdfTemplate(); unsubPdfTemplate = null; }
+        unsubPdfTemplate = db.collection('dm_settings').doc('pdf_template').onSnapshot(snap => {
+            const img = snap.exists ? safeImgSrc((snap.data() || {}).image) : '';
+            if (img) {
+                pdfTemplateImg = img;
+                safeSetItem('lpp_pdf_template', img);
+                updateTemplateStatusUI();
+            } else if (!snap.metadata.fromCache && pdfTemplateImg && pdfTemplateImg.length < 1000000) {
+                // Rien dans le cloud (confirme par le serveur, pas juste le cache
+                // hors ligne) mais ce telephone a un template: il devient la reference.
+                uploadPdfTemplate(pdfTemplateImg).catch(() => {});
+            }
+        }, err => { /* hors ligne ou regles: on garde le cache local */ });
+    }
 
     function loadPdfTemplate() {
         const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
         inp.onchange=function(){
             if(!inp.files[0]) return;
-            // Compresse avant stockage: une photo brute de telephone (3-5 Mo en base64)
-            // saturait a elle seule le localStorage et faisait echouer tous les
-            // enregistrements suivants.
+            // Plus grand (1600 px) que les photos: c'est le fond de page A4 du PDF,
+            // a 800 px il ressortait flou a l'impression.
             compressImage(inp.files[0], function(data){
                 pdfTemplateImg=data;
-                if(!safeSetItem('lpp_pdf_template', pdfTemplateImg)){
-                    showToast('Memoria llena: cierra y vuelve a abrir la app','error',5000);
-                    return;
-                }
-                // Update UI
-                const ts=document.getElementById('templateStatus');
-                const mb=document.getElementById('mainTemplateBtn');
-                if(ts) ts.textContent='✅ Template cargado';
-                if(mb) mb.innerHTML='🖼️ ✅ Template PDF cargado (cambiar)';
-                showToast('Template PDF cargado!','success');
-            });
+                safeSetItem('lpp_pdf_template', pdfTemplateImg);
+                updateTemplateStatusUI();
+                uploadPdfTemplate(data)
+                    .then(()=>showToast('Template PDF guardado en la nube — disponible en todos tus dispositivos','success',4000))
+                    .catch(()=>showToast('Template cargado en este teléfono, pero no se pudo subir a la nube','warning',5000));
+            }, {max:1600, maxBytes:PDF_TEMPLATE_MAX_BYTES, q:0.85});
         };
         inp.click();
     }
@@ -4352,7 +4623,7 @@
         const pkgKey = document.getElementById('qqPaquete').value;
         const preview = document.getElementById('qqPreview');
         if (!pkgKey || !qqSelectedGuests) { preview.style.display = 'none'; return; }
-        const pkg = CATALOG[pkgKey]; if (!pkg) { preview.style.display = 'none'; return; }
+        const pkg = getCatalog()[pkgKey]; if (!pkg) { preview.style.display = 'none'; return; }
         // Find matching tier
         const tier = pkg.tiers.find(t => t.guests === qqSelectedGuests);
         if (!tier) { preview.style.display = 'none'; return; }
@@ -4418,7 +4689,7 @@
         if (!pkgKey) { showToast('Elige un paquete', 'warning'); return; }
         if (!qqSelectedGuests) { showToast('Elige el número de invitados', 'warning'); return; }
 
-        const pkg = CATALOG[pkgKey];
+        const pkg = getCatalog()[pkgKey]; if (!pkg) { showToast('Paquete no encontrado', 'error'); return; }
         const tier = pkg.tiers.find(t => t.guests === qqSelectedGuests);
         if (!tier) { showToast('Tier no encontrado', 'error'); return; }
 
@@ -4431,7 +4702,7 @@
         const lineItems = [
             {
                 description: pkg.name + ' ' + tier.guests + 'pers',
-                unitPrice: isFixed ? total : tier.price,
+                unitPrice: isFixed ? subtotal : tier.price, // prix de liste: la remise apparait a part (Subtotal / Descuento)
                 quantity: isFixed ? 1 : tier.guests,
                 note: tier.note
             },

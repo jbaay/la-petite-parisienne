@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="es-MX">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -12,12 +12,16 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <title>La Petite Parisienne - Gestión de Eventos</title>
 
-    <!-- Firebase -->
+    <!-- Firebase / jsPDF / pdf.js: pas d'empreinte SRI pour l'instant. Ces URL
+         sont deja en cache chez le service worker sous forme de reponses
+         "opaques"; ajouter crossorigin ici ferait echouer le premier chargement
+         apres mise en ligne. A faire lors d'un changement de version (nouvelle URL). -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js: version figee + empreinte SRI. L'URL sans version chargeait
+         "la derniere", qui pouvait changer (ou etre compromise) sans prevenir. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
     <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- pdf.js (Mozilla) - lecture PDF 100% client-side, aucune donnée envoyée -->
@@ -758,7 +762,7 @@
             <div class="card"><div class="card-header"><h3 class="card-title">📈 Ingresos del Año</h3></div><div class="chart-container"><canvas id="revenueChart"></canvas></div></div>
             <div class="card resico-card">
                 <div class="resico-header"><span class="resico-badge">RESICO</span><h3 class="resico-title">Impuestos del Mes</h3></div>
-                <div class="info-box"><span class="info-box-icon">ℹ️</span> Base = pagos <strong>cobrados</strong> en el mes (no ventas). ISR: 1% (≤$25k) | 1.5% ($25k-$50k) | 2% (>$50k). <span id="dashResicoDeadline" style="font-weight:700;"></span></div>
+                <div class="info-box"><span class="info-box-icon">ℹ️</span> Base = pagos <strong>cobrados</strong> en el mes (no ventas). ISR: 1% (≤$25k) | 1.1% (≤$50k) | 1.5% (≤$83k) | 2% (≤$208k) | 2.5% (más), sobre el total del mes. <span id="dashResicoDeadline" style="font-weight:700;"></span></div>
                 <div style="margin-bottom:12px;">
                     <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);"><span style="font-size:0.85rem;color:var(--text-medium);">🏦 Cobrado (eventos)</span><span style="font-weight:600;" id="dashCobradoEvts">$0</span></div>
                     <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);"><span style="font-size:0.85rem;color:var(--text-medium);">📥 Cobrado (sin asignar)</span><span style="font-weight:600;" id="dashCobradoPending">$0</span></div>
@@ -1048,11 +1052,19 @@
     db.enablePersistence({synchronizeTabs:true}).catch(e=>{console.warn('Persistence:',e.code)});
 
     // ==================== UTILITIES: XSS PROTECTION ====================
+    // Echappe aussi les guillemets: l'ancienne version (textContent -> innerHTML)
+    // laissait passer " et ', donc une valeur placee dans un attribut
+    // (value="...", onclick="...") pouvait en sortir. Un nom venant d'un releve
+    // bancaire importe suffisait a injecter du code.
+    const _ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
     function esc(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = String(str);
-        return div.innerHTML;
+        if (str === null || str === undefined || str === '') return '';
+        return String(str).replace(/[&<>"']/g, c => _ESC_MAP[c]);
+    }
+    // Les photos sont des data URL JPEG produites par compressImage. Toute autre
+    // valeur (donnee corrompue ou injectee) n'est pas inseree dans un src.
+    function safeImgSrc(p) {
+        return (typeof p === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p)) ? p : '';
     }
 
     // ==================== UTILITIES: TOAST NOTIFICATIONS ====================
@@ -1113,6 +1125,13 @@
     }
     // Tri chronologique sur des dates ISO: la comparaison de chaines suffit et
     // reste juste meme si une date manque.
+    // Date du jour "YYYY-MM-DD" en heure LOCALE. new Date().toISOString() donne
+    // la date UTC: a Mexico, apres 18h, c'est deja demain. Un pago saisi le 30
+    // au soir partait au 1er du mois suivant et faussait le RESICO du mois.
+    function todayISO() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
     function byDateAsc(a, b) { return String(a.eventDate || '').localeCompare(String(b.eventDate || '')); }
     function byDateDesc(a, b) { return String(b.eventDate || '').localeCompare(String(a.eventDate || '')); }
 
@@ -1226,12 +1245,29 @@
         catch (e) {
             let msg = 'Error de conexión';
             if (e.code === 'auth/invalid-email') msg = 'Email inválido';
-            else if (e.code === 'auth/user-not-found') msg = 'Usuario no encontrado';
-            else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Contraseña incorrecta';
+            // Meme message pour "email inconnu" et "mauvais mot de passe": ne pas
+            // confirmer a un inconnu quelle adresse a un compte.
+            else if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Email o contraseña incorrectos';
+            else if (e.code === 'auth/too-many-requests') msg = 'Demasiados intentos. Espera unos minutos.';
             errorEl.textContent = msg; errorEl.classList.add('show');
         }
     }
-    function logout() { showConfirm('Cerrar Sesión','¿Seguro que quieres salir?','👋',function(){auth.signOut();},'Salir','btn-danger'); }
+    // Se deconnecter efface aussi la copie locale (clients, pagos, gastos): avant,
+    // tout restait lisible sur l'appareil apres "Salir" (utile si on s'est
+    // connecte sur un telephone ou un ordinateur prete). Les donnees restent
+    // dans le cloud. Le template PDF (image vierge) est garde.
+    function logout() {
+        const notSynced = syncStatus === 'syncing' || !navigator.onLine || appData.events.some(e => String(e.id).startsWith('local_'));
+        const msg = notSynced
+            ? 'Hay cambios que todavía no se subieron a la nube. Si sales ahora, se pueden perder. Conéctate a internet y espera "Guardado ☁️" antes de salir.'
+            : 'Se borrará la copia de tus datos en este dispositivo. Todo sigue guardado en la nube.';
+        showConfirm('Cerrar Sesión', msg, '👋', async function() {
+            try { await auth.signOut(); } catch (e) {}
+            ['dulcesMomentosData', 'lpp_templates', 'lpp_pending_payments'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+            try { await db.terminate(); await db.clearPersistence(); } catch (e) {}
+            location.reload();
+        }, notSynced ? 'Salir de todos modos' : 'Salir', 'btn-danger');
+    }
 
     function updateSyncStatus(status) {
         syncStatus = status;
@@ -1298,7 +1334,7 @@
             updateQuickStats();
         }, err => {
             updateSyncStatus('error');
-            showToast('Erreur de connexion — mode hors ligne', 'error');
+            showToast('Sin conexión — se muestran los datos guardados', 'error');
             loadData();
             initializeApp();
             updateQuickStats();
@@ -1310,7 +1346,7 @@
             refreshUI();
             updateQuickStats();
         }, err => {
-            showToast('Erreur sync gastos — mode hors ligne', 'error');
+            showToast('Error al sincronizar gastos — modo sin conexión', 'error');
         });
         // Templates listener (synced via Firebase)
         unsubTemplates = db.collection('dm_templates').onSnapshot(snap => {
@@ -1352,19 +1388,22 @@
                 saveData();
                 return;
             }
-            if (event.id && !event.id.startsWith('local_')) {
-                await db.collection('dm_events').doc(event.id).set(data);
-            } else {
+            if (!event.id || event.id.startsWith('local_')) {
+                // L'id Firestore est genere tout de suite, AVANT l'ecriture.
+                // Avec add(), l'id n'arrivait qu'a la confirmation du serveur:
+                // hors ligne, l'evenement s'affichait en double (copie local_ +
+                // copie du cache) et le modifier creait un 2e document dans le cloud.
                 const oldId = event.id;
-                const ref = await db.collection('dm_events').add(data);
-                event.id = ref.id;
+                event.id = db.collection('dm_events').doc().id;
                 const idx = appData.events.findIndex(e => e.id === oldId);
-                if (idx !== -1) appData.events[idx].id = ref.id;
+                if (idx !== -1) appData.events[idx].id = event.id;
+                if (currentEventId === oldId) currentEventId = event.id;
             }
+            await db.collection('dm_events').doc(event.id).set(data);
             updateSyncStatus('synced');
         } catch(e) {
             updateSyncStatus('error');
-            showToast('Erreur sauvegarde — données gardées localement', 'error');
+            showToast('Error al guardar — datos guardados en el teléfono', 'error');
         }
         safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
@@ -1375,7 +1414,7 @@
             updateSyncStatus('synced');
         } catch(e) {
             updateSyncStatus('error');
-            showToast('Erreur suppression — réessayez', 'error');
+            showToast('Error al eliminar — inténtalo de nuevo', 'error');
         }
         safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
@@ -1384,18 +1423,18 @@
         try {
             const data = Object.assign({}, expense);
             delete data.id;
-            if (expense.id && !expense.id.startsWith('local_')) { await db.collection('dm_expenses').doc(expense.id).set(data); }
-            else {
+            if (!expense.id || expense.id.startsWith('local_')) {
+                // Meme principe que pour les evenements: id genere avant l'ecriture.
                 const oldId = expense.id;
-                const ref = await db.collection('dm_expenses').add(data);
-                expense.id = ref.id;
+                expense.id = db.collection('dm_expenses').doc().id;
                 const idx = appData.expenses.findIndex(e => e.id === oldId);
-                if (idx !== -1) appData.expenses[idx].id = ref.id;
+                if (idx !== -1) appData.expenses[idx].id = expense.id;
             }
+            await db.collection('dm_expenses').doc(expense.id).set(data);
             updateSyncStatus('synced');
         } catch(e) {
             updateSyncStatus('error');
-            showToast('Erreur sauvegarde gasto — données gardées localement', 'error');
+            showToast('Error al guardar el gasto — datos guardados en el teléfono', 'error');
         }
         safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
@@ -1406,7 +1445,7 @@
             updateSyncStatus('synced');
         } catch(e) {
             updateSyncStatus('error');
-            showToast('Erreur suppression gasto', 'error');
+            showToast('Error al eliminar el gasto', 'error');
         }
         safeSetItem('dulcesMomentosData', JSON.stringify(appData));
     }
@@ -1424,13 +1463,13 @@
                 const idx = appTemplates.findIndex(t => t.id === oldId);
                 if (idx !== -1) appTemplates[idx].id = ref.id;
             }
-        } catch(e) { showToast('Erreur sauvegarde template', 'error'); }
+        } catch(e) { showToast('Error al guardar el template', 'error'); }
         safeSetItem('lpp_templates', JSON.stringify(appTemplates));
     }
     async function deleteTemplateFromFirebase(templateId) {
         try {
             if (templateId && !templateId.startsWith('tpl_')) await db.collection('dm_templates').doc(templateId).delete();
-        } catch(e) { showToast('Erreur suppression template', 'error'); }
+        } catch(e) { showToast('Error al eliminar el template', 'error'); }
         safeSetItem('lpp_templates', JSON.stringify(appTemplates));
     }
 
@@ -1443,7 +1482,7 @@
             // set() sans merge: une cle supprimee localement (ex: retour au solde
             // suivi automatiquement) doit aussi disparaitre sur les autres appareils.
             await db.collection('dm_settings').doc('main').set(Object.assign({}, appData.settings || {}));
-        } catch (e) { showToast('Erreur sauvegarde ajustes', 'error'); }
+        } catch (e) { showToast('Error al guardar los ajustes', 'error'); }
     }
 
     function loadData() {
@@ -1470,7 +1509,7 @@
     function initializeAppOnce() {
         if (_appInitialized) return;
         _appInitialized = true;
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayISO();
         const ed = document.getElementById('eventDate');
         if (ed && !ed.value) ed.value = today;
         const pd = document.getElementById('payDate');
@@ -1570,11 +1609,11 @@
         else if (sectionId==='templates') renderTemplates();
         else if (sectionId==='calendar') renderCalendar();
         else if (sectionId==='quickQuote') {
-            const qqd=document.getElementById('qqDate'); if(qqd && !qqd.value) qqd.value=new Date().toISOString().split('T')[0];
+            const qqd=document.getElementById('qqDate'); if(qqd && !qqd.value) qqd.value=todayISO();
         }
         else if (sectionId==='pendingPayments') {
             renderPendingPayments();
-            const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=new Date().toISOString().split('T')[0];
+            const ppd=document.getElementById('ppDate'); if(ppd && !ppd.value) ppd.value=todayISO();
         }
         else if (sectionId==='investments') renderInvestments();
         computeNotifications();
@@ -1642,7 +1681,7 @@
         const ft = document.getElementById('formTitle'); if(ft) ft.textContent = '✨ Nuevo Evento';
         document.getElementById('clientName').value = '';
         document.getElementById('clientPhone').value = '';
-        document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('eventDate').value = todayISO();
         document.getElementById('eventVenue').value = '';
         document.getElementById('otherVenue').value = '';
         document.getElementById('guestCount').value = '';
@@ -1653,10 +1692,11 @@
         document.getElementById('commissionRate').value = '10';
         document.getElementById('eventNotes').value = '';
         document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById('serviceDetails').innerHTML = '';
         document.getElementById('plannerFields').style.display = 'none';
         document.getElementById('commissionRow').style.display = 'none';
         document.getElementById('otherVenueGroup').style.display = 'none';
-        const pd = document.getElementById('payDate'); if(pd) pd.value = new Date().toISOString().split('T')[0];
+        const pd = document.getElementById('payDate'); if(pd) pd.value = todayISO();
         calculatePayments(); renderFormPayments(); renderFormPhotos(); renderLineItems();
     }
 
@@ -1688,8 +1728,12 @@
     }
     function updateServiceDetails() {
         const c=document.getElementById('serviceDetails'); if(selectedServices.length===0){c.innerHTML='';return;}
+        // Garde ce qui est deja tape: avant, cocher un 2e service reconstruisait
+        // tous les champs et effacait le detail saisi pour le premier.
+        const typed={};
+        selectedServices.forEach(s=>{const el=document.getElementById('service_'+s+'_details');if(el)typed[s]=el.value;});
         let h='<div style="margin-top:15px;">';
-        selectedServices.forEach(s=>{ h+=`<div class="form-group"><label class="form-label">${SERVICE_NAMES[s]} - Detalles</label><input type="text" class="form-input" id="service_${s}_details" placeholder="Descripción específica..." value="${formData.newEvent['service_'+s+'_details']||''}"></div>`; });
+        selectedServices.forEach(s=>{ const v=typed[s]!==undefined?typed[s]:(formData.newEvent['service_'+s+'_details']||''); h+=`<div class="form-group"><label class="form-label">${SERVICE_NAMES[s]||esc(s)} - Detalles</label><input type="text" class="form-input" id="service_${esc(s)}_details" placeholder="Descripción específica..." value="${esc(v)}"></div>`; });
         h+='</div>'; c.innerHTML=h;
     }
     function showServiceForm(st) {
@@ -1814,7 +1858,7 @@
         const d=document.getElementById('payDate').value;
         const n=document.getElementById('payNote').value;
         if(a<=0){showToast('Ingresa un monto válido','warning');return;}
-        currentPayments.push({amount:a,date:d||new Date().toISOString().split('T')[0],method:currentPayMethod,note:n});
+        currentPayments.push({amount:a,date:d||todayISO(),method:currentPayMethod,note:n});
         document.getElementById('payAmount').value='';
         document.getElementById('payNote').value='';
         renderFormPayments(); calculatePayments();
@@ -1866,13 +1910,13 @@
     function renderFormPhotos() {
         const c=document.getElementById('formPhotos'); if(!c)return;
         const pc=document.getElementById('photoCount'); if(pc) pc.textContent=formPhotos.length+'/5';
-        c.innerHTML=formPhotos.map((p,i)=>`<div style="position:relative;display:inline-block;"><img src="${p}" class="photo-thumb" onclick="viewPhoto(${i},'form')"><button onclick="removeFormPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;font-size:0.7rem;cursor:pointer;">×</button></div>`).join('')+(formPhotos.length<5?'<div class="photo-add-btn" onclick="addFormPhoto()">+</div>':'');
+        c.innerHTML=formPhotos.map((p,i)=>`<div style="position:relative;display:inline-block;"><img src="${safeImgSrc(p)}" class="photo-thumb" onclick="viewPhoto(${i},'form')"><button onclick="removeFormPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:white;border:none;width:20px;height:20px;border-radius:50%;font-size:0.7rem;cursor:pointer;">×</button></div>`).join('')+(formPhotos.length<5?'<div class="photo-add-btn" onclick="addFormPhoto()">+</div>':'');
     }
     function viewPhoto(i,src) {
         const photos = src==='form' ? formPhotos : (appData.events.find(e=>e.id===currentEventId)||{}).photos||[];
         if(!photos[i])return;
         document.getElementById('photoFullModal').style.display='block';
-        document.getElementById('photoFullModal').innerHTML=`<div class="photo-full-modal" onclick="closePhotoModal()"><img src="${photos[i]}" style="max-width:95%;max-height:90%;object-fit:contain;border-radius:8px;"><div style="position:absolute;top:20px;right:20px;color:white;font-size:2rem;cursor:pointer;">✕</div></div>`;
+        document.getElementById('photoFullModal').innerHTML=`<div class="photo-full-modal" onclick="closePhotoModal()"><img src="${safeImgSrc(photos[i])}" style="max-width:95%;max-height:90%;object-fit:contain;border-radius:8px;"><div style="position:absolute;top:20px;right:20px;color:white;font-size:2rem;cursor:pointer;">✕</div></div>`;
     }
     function closePhotoModal() { document.getElementById('photoFullModal').style.display='none'; document.getElementById('photoFullModal').innerHTML=''; }
 
@@ -2008,7 +2052,7 @@
     function addQuickLine(desc,note,qty) {
         lineItems.push({description:desc,unitPrice:0,quantity:qty||1,note:note||''});
         renderLineItems();
-        showToast(desc+' ajouté','info',1500);
+        showToast(desc+' agregado','info',1500);
     }
     function removeLineItem(i) { lineItems.splice(i,1); recalcLineItems(); renderLineItems(); }
     function updateLineItem(i,field,val) {
@@ -2032,7 +2076,7 @@
         c.innerHTML=lineItems.map((li,i)=>{
             const sub=(li.unitPrice||0)*(li.quantity||1);
             const isService=!!li.serviceKey;
-            return `<div class="line-item" draggable="true" data-idx="${i}" style="${isService?'border-left:3px solid var(--primary);':''}" ondragstart="onLineDragStart(event,${i})" ondragover="onLineDragOver(event)" ondragenter="onLineDragEnter(event)" ondragleave="onLineDragLeave(event)" ondrop="onLineDrop(event,${i})" ondragend="onLineDragEnd(event)"><div class="line-item-row"><span class="drag-handle">⠿</span><input type="text" class="form-input line-item-desc" placeholder="Descripción" value="${esc(li.description||'')}" ${isService?'readonly style="background:var(--primary-light);font-weight:600;padding:10px;font-size:0.9rem;"':'onchange="updateLineItem('+i+',\'description\',this.value)"'}><input type="number" class="form-input line-item-price" placeholder="Precio" value="${li.unitPrice||''}" oninput="updateLineItem(${i},'unitPrice',this.value)"><input type="number" class="form-input line-item-qty" placeholder="Qtd" value="${li.quantity||1}" oninput="updateLineItem(${i},'quantity',this.value)"><div class="line-item-subtotal">${formatCurrency(sub)}</div>${isService?'<div style="width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--primary-dark);" title="Désélectionner le service pour retirer">🔗</div>':'<button class="delete-btn" onclick="removeLineItem('+i+')" style="width:28px;height:28px;font-size:0.9rem;flex-shrink:0;">×</button>'}</div><input type="text" class="form-input line-item-note" placeholder="Detalle (ej: sabor, diseño...)" value="${esc(li.note||'')}" onchange="updateLineItem(${i},'note',this.value)"></div>`;
+            return `<div class="line-item" draggable="true" data-idx="${i}" style="${isService?'border-left:3px solid var(--primary);':''}" ondragstart="onLineDragStart(event,${i})" ondragover="onLineDragOver(event)" ondragenter="onLineDragEnter(event)" ondragleave="onLineDragLeave(event)" ondrop="onLineDrop(event,${i})" ondragend="onLineDragEnd(event)"><div class="line-item-row"><span class="drag-handle">⠿</span><input type="text" class="form-input line-item-desc" placeholder="Descripción" value="${esc(li.description||'')}" ${isService?'readonly style="background:var(--primary-light);font-weight:600;padding:10px;font-size:0.9rem;"':'onchange="updateLineItem('+i+',\'description\',this.value)"'}><input type="number" class="form-input line-item-price" placeholder="Precio" value="${esc(li.unitPrice||'')}" oninput="updateLineItem(${i},'unitPrice',this.value)"><input type="number" class="form-input line-item-qty" placeholder="Qtd" value="${esc(li.quantity||1)}" oninput="updateLineItem(${i},'quantity',this.value)"><div class="line-item-subtotal">${formatCurrency(sub)}</div>${isService?'<div style="width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--primary-dark);" title="Désélectionner le service pour retirer">🔗</div>':'<button class="delete-btn" onclick="removeLineItem('+i+')" style="width:28px;height:28px;font-size:0.9rem;flex-shrink:0;">×</button>'}</div><input type="text" class="form-input line-item-note" placeholder="Detalle (ej: sabor, diseño...)" value="${esc(li.note||'')}" onchange="updateLineItem(${i},'note',this.value)"></div>`;
         }).join('');
         recalcLineItems();
     }
@@ -2124,7 +2168,7 @@
         let evs=[...appData.events];
         // Smart sort: upcoming events first (by date asc), then past events (by date desc)
         const _n=new Date(); const _today=new Date(_n.getFullYear(),_n.getMonth(),_n.getDate());
-        function _parseDate(ds){const p=ds.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));}
+        function _parseDate(ds){return parseLocalDate(ds)||new Date(0);} // sans date: range dans les passes au lieu de planter la liste
         const upcoming=evs.filter(e=>_parseDate(e.eventDate)>=_today).sort((a,b)=>_parseDate(a.eventDate)-_parseDate(b.eventDate));
         const past=evs.filter(e=>_parseDate(e.eventDate)<_today).sort((a,b)=>_parseDate(b.eventDate)-_parseDate(a.eventDate));
         evs=[...upcoming,...past];
@@ -2214,8 +2258,8 @@
         const mi={'efectivo':'💵','transferencia':'🏦','tarjeta':'💳'};
         const payH=(ev.payments||[]).map(p=>`<div class="payment-history-item"><div><strong>${mi[p.method]||'💵'} ${formatCurrency(p.amount)}</strong><br><small style="color:var(--text-medium);">${formatDate(p.date)}${p.note?' - '+esc(p.note):''}</small></div></div>`).join('');
         const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
-        const photoH=(ev.photos||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📷 Fotos</h3></div><div class="photo-scroll">${ev.photos.map((p,i)=>`<img src="${p}" class="photo-thumb" onclick="viewPhoto(${i},'detail')">`).join('')}</div></div>`:'';
-        const liH=(ev.lineItems||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📋 Cotización</h3></div><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:8px;color:var(--text-medium);font-weight:600;">Descripción</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Precio</th><th style="text-align:center;padding:8px;color:var(--text-medium);font-weight:600;">Qtd</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Total</th></tr>${ev.lineItems.map(li=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">${esc(li.description||'-')}${li.note?'<br><small style="color:var(--text-medium);">'+esc(li.note)+'</small>':''}</td><td style="text-align:right;padding:8px;">${formatCurrency(li.unitPrice||0)}</td><td style="text-align:center;padding:8px;">${li.quantity||1}</td><td style="text-align:right;padding:8px;font-weight:600;">${formatCurrency((li.unitPrice||0)*(li.quantity||1))}</td></tr>`).join('')}<tr><td colspan="3" style="text-align:right;padding:10px 8px;font-weight:700;">TOTAL</td><td style="text-align:right;padding:10px 8px;font-weight:700;font-size:1.1rem;">${formatCurrency(ev.lineItems.reduce((s,li)=>s+(li.unitPrice||0)*(li.quantity||1),0))}</td></tr></table></div>`:'';
+        const photoH=(ev.photos||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📷 Fotos</h3></div><div class="photo-scroll">${ev.photos.map((p,i)=>`<img src="${safeImgSrc(p)}" class="photo-thumb" onclick="viewPhoto(${i},'detail')">`).join('')}</div></div>`:'';
+        const liH=(ev.lineItems||[]).length>0?`<div class="card"><div class="card-header"><h3 class="card-title">📋 Cotización</h3></div><table style="width:100%;border-collapse:collapse;font-size:0.9rem;"><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:8px;color:var(--text-medium);font-weight:600;">Descripción</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Precio</th><th style="text-align:center;padding:8px;color:var(--text-medium);font-weight:600;">Qtd</th><th style="text-align:right;padding:8px;color:var(--text-medium);font-weight:600;">Total</th></tr>${ev.lineItems.map(li=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">${esc(li.description||'-')}${li.note?'<br><small style="color:var(--text-medium);">'+esc(li.note)+'</small>':''}</td><td style="text-align:right;padding:8px;">${formatCurrency(li.unitPrice||0)}</td><td style="text-align:center;padding:8px;">${esc(li.quantity||1)}</td><td style="text-align:right;padding:8px;font-weight:600;">${formatCurrency((li.unitPrice||0)*(li.quantity||1))}</td></tr>`).join('')}<tr><td colspan="3" style="text-align:right;padding:10px 8px;font-weight:700;">TOTAL</td><td style="text-align:right;padding:10px 8px;font-weight:700;font-size:1.1rem;">${formatCurrency(ev.lineItems.reduce((s,li)=>s+(li.unitPrice||0)*(li.quantity||1),0))}</td></tr></table></div>`:'';
         // Pre-build quick payment and client history sections
         const quickPayHtml=buildQuickPaySection(ev);
         const clientHistoryHtml=buildClientHistory(ev);
@@ -2245,7 +2289,7 @@
             <div class="card"><div class="card-header"><h3 class="card-title">${esc(ev.clientName)}</h3><span class="card-badge ${isProspect(ev)?'badge-prospect':isPriceTBD(ev)?'badge-tbd':ev.status==='paid'?'badge-paid':ev.status==='partial'?'badge-partial':'badge-pending'}">${isProspect(ev)?'Cotización':isPriceTBD(ev)?'Falta precio':ev.status==='paid'?'Pagado':ev.status==='partial'?'Parcial':'Pendiente'}</span></div>
             <div class="payment-row"><span class="payment-label">📅 Fecha</span><span class="payment-value">${formatDate(ev.eventDate)}${cdTag}</span></div>
             <div class="payment-row"><span class="payment-label">📍 Lugar</span><span class="payment-value">${esc(ev.venue||'No especificado')}</span></div>
-            <div class="payment-row"><span class="payment-label">👥 Invitados</span><span class="payment-value">${ev.guestCount||'-'}</span></div>
+            <div class="payment-row"><span class="payment-label">👥 Invitados</span><span class="payment-value">${esc(ev.guestCount||'-')}</span></div>
             <div class="payment-row"><span class="payment-label">📱 WhatsApp</span><span class="payment-value">${esc(ev.clientPhone||'-')}</span></div></div>
 
             ${isProspect(ev)?`<div class="card" style="border-left:4px solid #8a8f98;">
@@ -2276,7 +2320,7 @@
             </div>
             ${totalPaid>0&&totalPaid<ev.totalPrice?`<div style="margin-top:10px;background:var(--border);border-radius:6px;height:8px;overflow:hidden;"><div style="height:100%;background:var(--success);border-radius:6px;width:${Math.min(100,Math.round(totalPaid/ev.totalPrice*100))}%;"></div></div><div style="text-align:center;font-size:0.8rem;color:var(--text-medium);margin-top:4px;">${Math.round(totalPaid/ev.totalPrice*100)}% cobrado</div>`:''}
             ${(ev.payments||[]).length>0?'<div style="margin-top:15px;">'+payH+'</div>':'<p style="color:var(--text-light);text-align:center;padding:12px;">Sin pagos registrados</p>'}
-            ${ev.hasPlanner?`<div style="margin-top:15px;padding:15px;background:#fff8e6;border-radius:12px;border:1px solid #f0d78c;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:600;">🤝 Comisión ${esc(ev.plannerName)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${ev.commissionRate}% = ${formatCurrency(ev.commission)}</div></div><div onclick="toggleCommissionPaid('${esc(ev.id)}')" style="cursor:pointer;font-size:1.5rem;">${ev.commissionPaid?'✅':'⬜'}</div></div></div>`:''}
+            ${ev.hasPlanner?`<div style="margin-top:15px;padding:15px;background:#fff8e6;border-radius:12px;border:1px solid #f0d78c;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:600;">🤝 Comisión ${esc(ev.plannerName)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${esc(ev.commissionRate)}% = ${formatCurrency(ev.commission)}</div></div><div onclick="toggleCommissionPaid('${esc(ev.id)}')" style="cursor:pointer;font-size:1.5rem;">${ev.commissionPaid?'✅':'⬜'}</div></div></div>`:''}
             ${quickPayHtml}</div>
 
             ${photoH}
@@ -2384,11 +2428,12 @@
         document.getElementById('commissionRate').value=ev.commissionRate||10;
         document.getElementById('plannerFields').style.display=ev.hasPlanner?'block':'none';
         document.getElementById('commissionRow').style.display=ev.hasPlanner?'flex':'none';
-        selectedServices=ev.services||[];
+        selectedServices=[...(ev.services||[])]; // copie: annuler une modification ne doit pas toucher l'evenement
         document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',selectedServices.includes(c.dataset.service));});
+        document.getElementById('serviceDetails').innerHTML='';
         updateServiceDetails();
         if(ev.serviceDetails) Object.entries(ev.serviceDetails).forEach(([s,d])=>{const el=document.getElementById('service_'+s+'_details');if(el)el.value=d;});
-        currentPayments=[...(ev.payments||[])]; formPhotos=[...(ev.photos||[])]; lineItems=[...(ev.lineItems||[])];
+        currentPayments=[...(ev.payments||[])]; formPhotos=[...(ev.photos||[])]; lineItems=(ev.lineItems||[]).map(li=>({...li}));
         calculatePayments(); renderFormPayments(); renderFormPhotos(); renderLineItems();
         showSection('newEvent');
     }
@@ -2421,6 +2466,23 @@
     function changeMonth(d) { currentMonth+=d;if(currentMonth>11){currentMonth=0;currentYear++;}else if(currentMonth<0){currentMonth=11;currentYear--;}updateMonthDisplay();updateDashboard();setTimeout(renderChart,200); }
     function updateMonthDisplay() { const m=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];document.getElementById('monthDisplay').textContent=m[currentMonth]+' '+currentYear; }
 
+    // Tabla mensual RESICO personas fisicas (art. 113-E LISR). La tasa se aplica
+    // al TOTAL cobrado del mes, no por tramos. L'ancienne version sautait
+    // directement de 1% a 1,5% (des 25k) puis 2% (des 50k): l'ISR estime etait
+    // surevalue entre 25k et 208k, et sous-evalue au-dela.
+    const RESICO_TABLE = [[25000, 1], [50000, 1.1], [83333.33, 1.5], [208333.33, 2], [Infinity, 2.5]];
+    function resicoRate(cobrado) {
+        for (const [max, rate] of RESICO_TABLE) if (cobrado <= max) return rate;
+        return 2.5;
+    }
+    // Total cobrado dans un mois donne: acomptes des evenements + pagos sin asignar.
+    function cobradoDelMes(month, year) {
+        let evts = 0, pend = 0;
+        appData.events.forEach(e => (e.payments || []).forEach(p => { if (isInMonth(p.date, month, year)) evts += p.amount || 0; }));
+        pendingPayments.forEach(p => { if (isInMonth(p.date, month, year)) pend += p.amount || 0; });
+        return { evts, pend, total: evts + pend };
+    }
+
     function updateDashboard() {
         const mEvs=bookedEvents().filter(e=>isInMonth(e.eventDate,currentMonth,currentYear));
         const mExps=appData.expenses.filter(e=>e.month===currentMonth&&e.year===currentYear);
@@ -2429,18 +2491,9 @@
         const netInc=totalRev-totalExp;
 
         // RESICO: base = pagos COBRADOS en el mes (no ventas facturadas)
-        let cobradoEvts=0;
-        appData.events.forEach(e=>{(e.payments||[]).forEach(p=>{
-            const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;
-            if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear) cobradoEvts+=p.amount||0;
-        });});
-        let cobradoPending=0;
-        pendingPayments.forEach(p=>{
-            const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;
-            if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear) cobradoPending+=p.amount||0;
-        });
-        const totalCobrado=cobradoEvts+cobradoPending;
-        let rr=1;if(totalCobrado>50000)rr=2;else if(totalCobrado>25000)rr=1.5;
+        const _cob=cobradoDelMes(currentMonth,currentYear);
+        const cobradoEvts=_cob.evts, cobradoPending=_cob.pend, totalCobrado=_cob.total;
+        const rr=resicoRate(totalCobrado);
         const tax=totalCobrado*(rr/100);
         const netP=totalCobrado-totalExp-tax;
 
@@ -2550,7 +2603,7 @@
             ev.invested = true;
             ev.investedCetes = inv.cetes;
             ev.investedNu = inv.nu;
-            ev.investedDate = new Date().toISOString().split('T')[0];
+            ev.investedDate = todayISO();
             showToast('✅ Inversión registrada','success');
         }
         saveData();
@@ -2746,7 +2799,8 @@
             m.style.display='block';
             const c=document.getElementById('notifList');
             if(notifications.length===0){c.innerHTML='<p style="text-align:center;color:var(--text-medium);padding:20px;">Sin notificaciones 🎉</p>';}
-            else{c.innerHTML=notifications.map(n=>`<div class="notif-item notif-${n.type}" onclick="tapNotif('${n.eventId}','${n.id}')"><span style="font-size:1.5rem;">${n.icon}</span><div style="flex:1;"><div style="font-weight:600;">${n.title}</div><div style="font-size:0.85rem;color:var(--text-medium);">${n.sub}</div></div><span onclick="event.stopPropagation();dismissNotif('${n.id}')" style="font-size:1.2rem;padding:4px;">✕</span></div>`).join('');}
+            // title/sub contiennent le nom du client et le lieu: toujours echappes.
+            else{c.innerHTML=notifications.map(n=>`<div class="notif-item notif-${n.type}" onclick="tapNotif('${esc(n.eventId)}','${esc(n.id)}')"><span style="font-size:1.5rem;">${n.icon}</span><div style="flex:1;"><div style="font-weight:600;">${esc(n.title)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${esc(n.sub)}</div></div><span onclick="event.stopPropagation();dismissNotif('${esc(n.id)}')" style="font-size:1.2rem;padding:4px;">✕</span></div>`).join('');}
         } else { m.style.display='none'; }
     }
     function dismissNotif(id) { const d=JSON.parse(localStorage.getItem('lpp_dismissed_notifs')||'[]');d.push(id);safeSetItem('lpp_dismissed_notifs',JSON.stringify(d));computeNotifications();toggleNotifications();toggleNotifications(); }
@@ -2772,11 +2826,11 @@
         if(t.guestCount) document.getElementById('guestCount').value=t.guestCount;
         if(t.hasPlanner){document.getElementById('hasPlanner').checked=true;document.getElementById('plannerName').value=t.plannerName||'';document.getElementById('commissionRate').value=t.commissionRate||10;togglePlannerFields();}
         if(t.notes) document.getElementById('eventNotes').value=t.notes;
-        selectedServices=t.services||[];
+        selectedServices=[...(t.services||[])];
         document.querySelectorAll('.service-card').forEach(c=>{c.classList.toggle('selected',selectedServices.includes(c.dataset.service));});
         updateServiceDetails();
         if(t.serviceDetails) Object.entries(t.serviceDetails).forEach(([s,d])=>{const el=document.getElementById('service_'+s+'_details');if(el)el.value=d;});
-        lineItems=[...(t.lineItems||[])]; renderLineItems();
+        lineItems=(t.lineItems||[]).map(li=>({...li})); renderLineItems();
         calculatePayments();
         closeTemplatePicker();
         showSection('newEvent');
@@ -2787,7 +2841,7 @@
         const nt=document.getElementById('noTemplates');
         if(appTemplates.length===0){c.innerHTML='';if(nt)nt.style.display='block';return;}
         if(nt)nt.style.display='none';
-        c.innerHTML=appTemplates.map(t=>`<div class="template-item"><div style="flex:1;"><div style="font-weight:600;">${esc(t.name)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${(t.services||[]).join(', ')} • ${formatCurrency(t.totalPrice||0)}</div></div><button class="delete-btn" onclick="deleteTemplate('${esc(t.id)}')" style="width:28px;height:28px;font-size:0.9rem;">×</button></div>`).join('');
+        c.innerHTML=appTemplates.map(t=>`<div class="template-item"><div style="flex:1;"><div style="font-weight:600;">${esc(t.name)}</div><div style="font-size:0.85rem;color:var(--text-medium);">${esc((t.services||[]).join(', '))} • ${formatCurrency(t.totalPrice||0)}</div></div><button class="delete-btn" onclick="deleteTemplate('${esc(t.id)}')" style="width:28px;height:28px;font-size:0.9rem;">×</button></div>`).join('');
     }
     function showTemplatePicker() {
         if(appTemplates.length===0){showToast('Sin templates — guarda uno desde el detalle de un evento','info');return;}
@@ -2961,10 +3015,8 @@
         const rev=mEvs.reduce((s,e)=>s+(e.totalPrice||e.netAmount||0),0);
         const exp=mExps.reduce((s,e)=>s+e.amount,0);
         // Calculate RESICO for report
-        let cob=0;
-        appData.events.forEach(e=>{(e.payments||[]).forEach(p=>{const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear)cob+=p.amount||0;});});
-        pendingPayments.forEach(p=>{const pp=p.date?p.date.match(/^(\d{4})-(\d{2})-(\d{2})$/):null;if(pp&&+pp[2]-1===currentMonth&&+pp[1]===currentYear)cob+=p.amount||0;});
-        let rr2=1;if(cob>50000)rr2=2;else if(cob>25000)rr2=1.5;
+        const cob=cobradoDelMes(currentMonth,currentYear).total;
+        const rr2=resicoRate(cob);
         const isr=cob*(rr2/100);
         const r=`🥐 *Reporte La Petite Parisienne*\n📅 ${ms[currentMonth]} ${currentYear}\n\n📋 Eventos: ${mEvs.length}\n💰 Ingresos: ${formatCurrency(rev)}\n💸 Gastos: ${formatCurrency(exp)}\n✅ Neto: ${formatCurrency(rev-exp)}\n\n🏛️ *RESICO*\n💵 Cobrado: ${formatCurrency(cob)}\n📊 Tasa: ${rr2}%\n🧾 ISR: ${formatCurrency(isr)}`;
         window.open('https://wa.me/?text='+encodeURIComponent(r),'_blank');
@@ -3067,7 +3119,7 @@
 
     function addPendingPayment() {
         const amount = parseFloat(document.getElementById('ppAmount').value) || 0;
-        const date = document.getElementById('ppDate').value || new Date().toISOString().split('T')[0];
+        const date = document.getElementById('ppDate').value || todayISO();
         const name = document.getElementById('ppName').value.trim();
         const note = document.getElementById('ppNote').value.trim();
         if (amount <= 0) { showToast('Ingresa un monto valido', 'warning'); return; }
@@ -3237,7 +3289,11 @@
             showToast('Error: pdf.js no cargado. Recarga la pagina.', 'error');
             return [];
         }
-        const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
+        // isEvalSupported:false = correctif officiel de CVE-2024-4367: avec la
+        // version 3.11 de pdf.js, un PDF piege pouvait executer du JavaScript
+        // dans l'app (donc acceder aux donnees). On ne lit que du texte: aucune
+        // perte de fonctionnalite.
+        const pdf = await pdfjsLib.getDocument({data: buffer, isEvalSupported: false}).promise;
         const numPages = pdf.numPages;
 
         // Extract all pages with positional data (for SPEI) and plain text (for main table)
@@ -3500,7 +3556,7 @@
         return pendingPayments.some(p =>
             Math.abs(p.amount - tx.amount) < 0.01 &&
             p.date === tx.date &&
-            p.name.toLowerCase().includes(tx.name.substring(0, 8).toLowerCase())
+            (p.name || '').toLowerCase().includes((tx.name || '').substring(0, 8).toLowerCase())
         );
     }
 
@@ -3724,7 +3780,7 @@
         _creatingEventFromPaymentId = payId; // Set AFTER clearFormData which resets it
         // Pre-fill form with payment data
         document.getElementById('clientName').value = pp.name || '';
-        document.getElementById('eventDate').value = pp.date || new Date().toISOString().split('T')[0];
+        document.getElementById('eventDate').value = pp.date || todayISO();
         // Le virement recu est un ACOMPTE, pas le total. Le preremplir comme prix
         // marquait l'evenement comme integralement paye et faussait le CA.
         document.getElementById('totalPrice').value = '';
@@ -3857,13 +3913,18 @@
         if(q.length<1){dropdown.classList.remove('visible');return;}
         const clients=getUniqueClients().filter(c=>c.name.toLowerCase().includes(q));
         if(clients.length===0){dropdown.classList.remove('visible');return;}
-        dropdown.innerHTML=clients.slice(0,6).map(c=>`<div class="autocomplete-item" onmousedown="selectClient('${esc(c.name)}','${esc(c.phone)}')"><div class="autocomplete-name">${esc(c.name)}</div><div class="autocomplete-phone">${c.phone?'📱 '+esc(c.phone):'Sin telefono'}</div><div class="autocomplete-events">${c.count} evento${c.count>1?'s':''}</div></div>`).join('');
+        // On passe un index, pas le nom: un nom avec apostrophe (D'Angelo)
+        // cassait le onmousedown, et un nom forge pouvait y injecter du code.
+        _acClients=clients.slice(0,6);
+        dropdown.innerHTML=_acClients.map((c,i)=>`<div class="autocomplete-item" onmousedown="selectClient(${i})"><div class="autocomplete-name">${esc(c.name)}</div><div class="autocomplete-phone">${c.phone?'📱 '+esc(c.phone):'Sin telefono'}</div><div class="autocomplete-events">${c.count} evento${c.count>1?'s':''}</div></div>`).join('');
         dropdown.classList.add('visible');
     }
+    let _acClients=[];
 
-    function selectClient(name,phone) {
-        document.getElementById('clientName').value=name;
-        if(phone) document.getElementById('clientPhone').value=phone;
+    function selectClient(i) {
+        const c=_acClients[i]; if(!c) return;
+        document.getElementById('clientName').value=c.name;
+        if(c.phone) document.getElementById('clientPhone').value=c.phone;
         document.getElementById('clientAutocomplete').classList.remove('visible');
     }
 
@@ -3885,7 +3946,7 @@
             <div class="quick-pay-title">⚡ Pago Rapido</div>
             <div class="quick-pay-row">
                 <div style="flex:1;"><input type="number" class="form-input" id="quickPayAmount" placeholder="${remaining}" style="padding:10px;"></div>
-                <div style="flex:1;"><input type="date" class="form-input" id="quickPayDate" value="${new Date().toISOString().split('T')[0]}" style="padding:10px;"></div>
+                <div style="flex:1;"><input type="date" class="form-input" id="quickPayDate" value="${todayISO()}" style="padding:10px;"></div>
             </div>
             <div style="display:flex;gap:6px;margin-bottom:8px;" id="quickPayMethodBtns">
                 <button class="pay-method-btn active" onclick="setQuickPayMethod('efectivo',this)" style="flex:1;padding:8px;">💵 Efectivo</button>
@@ -3906,7 +3967,7 @@
     function quickAddPayment(eventId) {
         const ev=appData.events.find(e=>e.id===eventId);if(!ev)return;
         const amount=parseFloat(document.getElementById('quickPayAmount').value)||0;
-        const date=document.getElementById('quickPayDate').value||new Date().toISOString().split('T')[0];
+        const date=document.getElementById('quickPayDate').value||todayISO();
         const note=document.getElementById('quickPayNote').value||'';
         if(amount<=0){showToast('Ingresa un monto valido','warning');return;}
         if(!ev.payments) ev.payments=[];
@@ -3950,7 +4011,6 @@
         const in7days = new Date(today); in7days.setDate(in7days.getDate() + 7);
         const in3days = new Date(today); in3days.setDate(in3days.getDate() + 3);
         const dayNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-        const todayStr = today.toISOString().split('T')[0];
 
         // Events coming up (next 7 days)
         const upcoming = appData.events
@@ -4248,7 +4308,7 @@
 
         const totalToCollect = pendingPay.reduce((s,e) => s + Math.max(0, e.totalPrice - (e.payments||[]).reduce((ss,p)=>ss+(p.amount||0),0)), 0);
 
-        let msg = `🥐 MI DÍA — ${formatDate(today.toISOString().split('T')[0])}\n\n`;
+        let msg = `🥐 MI DÍA — ${formatDate(todayISO())}\n\n`;
 
         if (upcoming.length > 0) {
             msg += `📅 EVENTOS ESTA SEMANA:\n`;
@@ -4328,8 +4388,9 @@
         if (q.length < 1) { dropdown.classList.remove('visible'); return; }
         const clients = getUniqueClients().filter(c => c.name.toLowerCase().includes(q));
         if (clients.length === 0) { dropdown.classList.remove('visible'); return; }
-        dropdown.innerHTML = clients.slice(0,6).map(c =>
-            `<div class="autocomplete-item" onmousedown="qqSelectClient('${esc(c.name)}','${esc(c.phone)}')">
+        _acClients = clients.slice(0,6);
+        dropdown.innerHTML = _acClients.map((c, i) =>
+            `<div class="autocomplete-item" onmousedown="qqSelectClient(${i})">
                 <div class="autocomplete-name">${esc(c.name)}</div>
                 <div class="autocomplete-phone">${c.phone?'📱 '+esc(c.phone):'Sin telefono'}</div>
                 <div class="autocomplete-events">${c.count} evento${c.count>1?'s':''}</div>
@@ -4338,9 +4399,10 @@
         dropdown.classList.add('visible');
     }
 
-    function qqSelectClient(name, phone) {
-        document.getElementById('qqName').value = name;
-        if (phone) document.getElementById('qqPhone').value = phone;
+    function qqSelectClient(i) {
+        const c = _acClients[i]; if (!c) return;
+        document.getElementById('qqName').value = c.name;
+        if (c.phone) document.getElementById('qqPhone').value = c.phone;
         document.getElementById('qqAutocomplete').classList.remove('visible');
     }
 
@@ -4401,7 +4463,7 @@
             commissionRate: 0,
             commission: 0,
             commissionPaid: false,
-            notes: 'Cotización enviada por WhatsApp el ' + new Date().toISOString().split('T')[0],
+            notes: 'Cotización enviada por WhatsApp el ' + todayISO(),
             status: 'pending',
             payments: [],
             photos: [],
@@ -4505,9 +4567,9 @@
             let content = `<div class="cal-day-num">${day}</div>`;
             if (evs.length === 1) {
                 content += `<div class="cal-event-mini">${esc(evs[0].clientName)}</div>`;
-                content += `<div><span class="cal-event-dot ${evs[0].status||'pending'}"></span></div>`;
+                content += `<div><span class="cal-event-dot ${esc(evs[0].status||'pending')}"></span></div>`;
             } else if (evs.length > 1) {
-                const dots = evs.slice(0,5).map(e => `<span class="cal-event-dot ${e.status||'pending'}"></span>`).join('');
+                const dots = evs.slice(0,5).map(e => `<span class="cal-event-dot ${esc(e.status||'pending')}"></span>`).join('');
                 content += `<div>${dots}</div>`;
                 content += `<div class="cal-event-count">${evs.length} eventos</div>`;
             }
@@ -4684,7 +4746,7 @@
                 id:'local_'+Date.now(),
                 clientName:ev.clientName,
                 clientPhone:ev.clientPhone,
-                eventDate:new Date().toISOString().split('T')[0],
+                eventDate:todayISO(),
                 venue:ev.venue,
                 guestCount:ev.guestCount,
                 services:[...(ev.services||[])],

@@ -3150,129 +3150,173 @@
     }
 
     // ==================== PDF GENERATION ====================
-    function generatePDF(type) {
+    // Variante "sobre": le template fait deja tout le decor, on n'ajoute ni
+    // filet ni bloc. Corrige par rapport a l'ancienne version:
+    // - plus de 7-8 lignes: le contenu passait sous la 2e ligne rose, ecrasait
+    //   "Merci !" et sortait de la page -> pages supplementaires ;
+    // - en-tete "PRECIO" en double -> PRECIO / CANT. / IMPORTE ;
+    // - montants centres sur des x fixes -> alignes a droite ;
+    // - evenement sans prix -> plus de cotizacion a $0 ;
+    // - petit titre gris (COTIZACIÓN / NOTA DE VENTA) + folio minuscule.
+    // returnDoc=true renvoie le document au lieu de le telecharger (apercus).
+    function generatePDF(type, returnDoc) {
         const ev=appData.events.find(e=>e.id===currentEventId);if(!ev)return;
         if(!pdfTemplateImg){showToast('Primero carga tu imagen de template PDF','warning');return;}
+        if(isPriceTBD(ev)){showToast('Primero pon el precio del evento','warning');return;}
         const {jsPDF}=window.jspdf;
         const doc=new jsPDF({unit:'mm',format:'a4'});
         const pw=210, ph=297;
         const brown=[100,75,55];
         const brownLight=[140,115,95];
         const brownDark=[70,50,35];
+        const grey=[165,150,140];
 
-        // Background: blank template image (logo + feuilles, no text)
-        doc.addImage(pdfTemplateImg,'JPEG',0,0,pw,ph);
+        // Mesures du template (Image-1.jpg, 1415x2000 px -> A4 210x297 mm):
+        // logo jusqu'a ~88 mm, 1re ligne rose ~114 mm, 2e ligne rose ~216 mm,
+        // zone blanche jusqu'a ~272 mm. Le tableau vit entre les deux lignes
+        // roses, "Merci !" sous la seconde.
+        const LM=18, RM=192, CX=105;
+        const COL_PRICE=132, COL_QTY=148; // bord droit des prix / centre des quantites
+        const ROWS_TOP=129, ROWS_BOTTOM=211, TOTALS_BOTTOM=213;
+        const ROW_GAP=4.5, NOTE_LH=3.3; // 7 lignes avec detail par page
+        const DESC_W=92;
+        const title=type==='devis'?'COTIZACIÓN':'NOTA DE VENTA';
+        const folio='N° '+String(ev.id||'').replace(/^local_/,'').slice(-5).toUpperCase()+'  ·  '+todayISO().split('-').reverse().join('.');
+        const clientName=stripEmojis(ev.clientName||'');
 
-        // Template measurements (Image-1.jpg = 1415x2000px → A4 210x297mm)
-        // 1st pink line: y≈607px → 90mm. 2nd pink line: y≈1456px → 216mm
-        // White zone left edge: x≈75px → 11mm. Right edge: x≈1340px → 199mm
-        // Usable zone: y=95mm to y=212mm (with 5mm margins from lines)
-        // Horizontal center: 105mm. Left margin: 18mm. Right margin: 195mm
-
-        const LM=18, RM=195, CX=105; // left margin, right margin, center x
-        const TOP=96; // start text 6mm below first pink line
-
-        // ====== CLIENT INFO ======
-        let y=TOP;
-        doc.setFontSize(12); doc.setTextColor(...brownDark);
-        doc.text(stripEmojis(ev.clientName).toUpperCase(),LM,y);
-        y+=6;
-        const snm={pastel:'Pastel',mesa_dulces:'Mesa de Dulces',postres:'Postres',quesos:'Mesa de Quesos',bebidas:'Bebidas',otro:'Otro'};
-        const svcNames=(ev.services||[]).map(s=>snm[s]||s).join(' + ');
-        doc.setFontSize(9); doc.setTextColor(...brown);
-        if(svcNames){doc.text(svcNames,LM,y);y+=5;}
-        if(ev.hasPlanner&&ev.plannerName){doc.text('WP: '+stripEmojis(ev.plannerName),LM,y);y+=5;}
-
-        // Date + venue - right aligned
-        doc.setFontSize(9); doc.setTextColor(...brownLight);
-        doc.text('Fecha evento : '+ev.eventDate.split('-').reverse().join('.'),RM,TOP,{align:'right'});
-        if(ev.venue) doc.text(stripEmojis(ev.venue),RM,TOP+6,{align:'right'});
-        if(ev.guestCount) doc.text(ev.guestCount+' invitados',RM,TOP+12,{align:'right'});
-
-        // Separator
-        y=Math.max(y+4,114);
-        doc.setDrawColor(210,185,175); doc.setLineWidth(0.3); doc.line(LM,y,RM,y);
-
-        // ====== TABLE HEADER ======
-        y+=7;
-        doc.setFontSize(10); doc.setTextColor(...brownDark);
-        doc.text('DESCRIPCION',LM+2,y);
-        doc.text('PRECIO',108,y,{align:'center'});
-        doc.text('QTD',140,y,{align:'center'});
-        doc.text('PRECIO',178,y,{align:'center'});
-
-        // ====== TABLE ROWS ======
-        y+=8; doc.setFontSize(9); doc.setTextColor(...brown);
-        const items=(ev.lineItems||[]).length>0 ? ev.lineItems : [{description:'Servicio completo',unitPrice:ev.totalPrice,quantity:1,note:''}];
-        items.forEach(li=>{
-            const sub=(li.unitPrice||0)*(li.quantity||1);
-            const priceStr=(li.unitPrice===0||li.unitPrice===undefined)?'incluido':formatCurrency(li.unitPrice);
-            const subStr=sub===0?'incluido':formatCurrency(sub);
-
-            const descLines=doc.splitTextToSize(stripEmojis(li.description||'-'),75);
-            doc.setTextColor(...brown);
-            doc.text(descLines,LM+2,y);
-            doc.text(priceStr,108,y,{align:'center'});
-            doc.text(String(li.quantity||1),140,y,{align:'center'});
-            doc.text(subStr,178,y,{align:'center'});
-            y+=descLines.length*4.5;
-            if(li.note){
-                doc.setFontSize(8); doc.setTextColor(...brownLight);
-                const noteLines=doc.splitTextToSize(stripEmojis(li.note),75);
-                doc.text(noteLines,LM+2,y);
-                y+=noteLines.length*3.5;
+        // En-tete commun a chaque page: fond, titre discret, folio, client.
+        function pageTop(first){
+            doc.addImage(pdfTemplateImg,'JPEG',0,0,pw,ph);
+            doc.setFontSize(6.5); doc.setTextColor(...grey);
+            doc.text(title,LM,93,{charSpace:0.8});
+            if(first){
+                let y=99;
+                doc.setFontSize(12); doc.setTextColor(...brownDark);
+                doc.text(clientName.toUpperCase(),LM,y);
+                y+=5.5;
+                const snm={pastel:'Pastel',mesa_dulces:'Mesa de Dulces',postres:'Postres',quesos:'Mesa de Quesos',bebidas:'Bebidas',otro:'Otro'};
+                const svcNames=(ev.services||[]).map(s=>snm[s]||s).join(' + ');
                 doc.setFontSize(9); doc.setTextColor(...brown);
+                if(svcNames){doc.text(svcNames,LM,y);y+=5;}
+                if(ev.hasPlanner&&ev.plannerName){doc.text('WP: '+stripEmojis(ev.plannerName),LM,y);}
+                doc.setFontSize(9); doc.setTextColor(...brownLight);
+                doc.text('Fecha evento : '+ev.eventDate.split('-').reverse().join('.'),RM,99,{align:'right'});
+                if(ev.venue) doc.text(stripEmojis(ev.venue),RM,104.5,{align:'right'});
+                if(ev.guestCount) doc.text(ev.guestCount+' invitados',RM,110,{align:'right'});
+            } else {
+                doc.setFontSize(10); doc.setTextColor(...brownDark);
+                doc.text(clientName.toUpperCase(),LM,99);
+                doc.setFontSize(8); doc.setTextColor(...grey);
+                doc.text('(continuación)',LM,104);
             }
-            y+=5;
+            // Meme filet que l'ancienne version, sur la 1re ligne rose.
+            doc.setDrawColor(210,185,175); doc.setLineWidth(0.3); doc.line(LM,114,RM,114);
+        }
+        function tableHeader(){
+            doc.setFontSize(9); doc.setTextColor(...brownDark);
+            doc.text('DESCRIPCIÓN',LM+2,121);
+            doc.text('PRECIO',COL_PRICE,121,{align:'right'});
+            doc.text('CANT.',COL_QTY,121,{align:'center'});
+            doc.text('IMPORTE',RM,121,{align:'right'});
+        }
+
+        pageTop(true); tableHeader();
+
+        const _pdfD=eventDiscount(ev);
+        const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
+        const restante=Math.max(0,ev.totalPrice-totalPaid);
+        const pays=type==='nota'?(ev.payments||[]):[];
+        const totalsH=6+(_pdfD.amount>0?11:1)+(type==='devis'?7:0)+(pays.length?10+pays.length*4.5:0);
+
+        // ====== LIGNES ======
+        let y=ROWS_TOP;
+        const items=(ev.lineItems||[]).length>0 ? ev.lineItems : [{description:'Servicio completo',unitPrice:ev.totalPrice,quantity:1,note:''}];
+        items.forEach((li,idx)=>{
+            const qty=li.quantity||1;
+            const sub=(li.unitPrice||0)*qty;
+            doc.setFontSize(9);
+            const descLines=doc.splitTextToSize(stripEmojis(li.description||'-'),DESC_W);
+            doc.setFontSize(8);
+            const noteLines=li.note?doc.splitTextToSize(stripEmojis(li.note),DESC_W):[];
+            const h=descLines.length*4.5+noteLines.length*NOTE_LH+ROW_GAP;
+            // Plus de place avant la 2e ligne rose: page suivante.
+            // La derniere ligne passe aussi a la page suivante si le total ne
+            // tient plus derriere elle: jamais une page avec le total tout seul.
+            const isLast=idx===items.length-1;
+            if(y>ROWS_TOP && (y+h-ROW_GAP>ROWS_BOTTOM || (isLast && y+h+totalsH>TOTALS_BOTTOM))){ doc.addPage(); pageTop(false); tableHeader(); y=ROWS_TOP; }
+            doc.setFontSize(9); doc.setTextColor(...brown);
+            doc.text(descLines,LM+2,y);
+            doc.text(li.unitPrice?formatCurrency(li.unitPrice):'incluido',COL_PRICE,y,{align:'right'});
+            doc.text(String(qty),COL_QTY,y,{align:'center'});
+            doc.text(sub?formatCurrency(sub):'incluido',RM,y,{align:'right'});
+            y+=descLines.length*4.5;
+            if(noteLines.length){
+                doc.setFontSize(8); doc.setTextColor(...brownLight);
+                doc.text(noteLines,LM+2,y);
+                y+=noteLines.length*NOTE_LH;
+            }
+            y+=ROW_GAP;
         });
 
-        // ====== TOTAL LINE (must stay above 2nd pink line at 216mm) ======
-        // Separator before total
+        // ====== TOTAUX ======
+        if(y+totalsH>TOTALS_BOTTOM){ doc.addPage(); pageTop(false); y=ROWS_TOP-6; }
         doc.setDrawColor(180,130,120); doc.setLineWidth(0.5); doc.line(LM,y,RM,y);
         y+=6;
-        // Ristourne: sous-total puis remise, avant le total facture.
-        const _pdfD=eventDiscount(ev);
+        const LBL=165; // bord droit des libelles de totaux
         if(_pdfD.amount>0){
             doc.setFontSize(10); doc.setTextColor(120,100,90);
-            doc.text('Subtotal',CX+15,y,{align:'center'});
-            doc.text(formatCurrency(_pdfD.listPrice),178,y,{align:'center'});
+            doc.text('Subtotal',LBL,y,{align:'right'});
+            doc.text(formatCurrency(_pdfD.listPrice),RM,y,{align:'right'});
             y+=5;
-            doc.text('Descuento'+(ev.discountType==='amount'?'':' '+_pdfD.value+'%'),CX+15,y,{align:'center'});
-            doc.text('-'+formatCurrency(_pdfD.amount),178,y,{align:'center'});
+            doc.text('Descuento'+(ev.discountType==='amount'?'':' '+_pdfD.value+'%'),LBL,y,{align:'right'});
+            doc.text('-'+formatCurrency(_pdfD.amount),RM,y,{align:'right'});
             y+=6;
         } else { y+=1; }
         doc.setFontSize(12); doc.setTextColor(...brownDark);
-        doc.text('TOTAL',CX+15,y,{align:'center'});
-        doc.text(formatCurrency(ev.totalPrice),178,y,{align:'center'});
+        doc.text('TOTAL',LBL,y,{align:'right'});
+        doc.text(formatCurrency(ev.totalPrice),RM,y,{align:'right'});
 
-        // Payment info (below total, still above 2nd line)
-        const totalPaid=(ev.payments||[]).reduce((s,p)=>s+(p.amount||0),0);
-        if(type==='devis' && totalPaid>0){
+        // Arrondi une seule fois: 7,763 + 7,762 = 15,525 (et non 7,763 + 7,763).
+        const anticipo=Math.round(ev.totalPrice/2);
+        if(type==='devis'){
             y+=7; doc.setFontSize(8); doc.setTextColor(...brownLight);
-            doc.text('Pagado: '+formatCurrency(totalPaid)+' | Restante: '+formatCurrency(ev.totalPrice-totalPaid),CX,y,{align:'center'});
-        } else if(type==='devis'){
-            y+=7; doc.setFontSize(8); doc.setTextColor(...brownLight);
-            doc.text('Anticipo 50%: '+formatCurrency(ev.totalPrice/2)+' | Saldo 1 semana antes: '+formatCurrency(ev.totalPrice/2),CX,y,{align:'center'});
+            doc.text(totalPaid>0
+                ? 'Pagado: '+formatCurrency(totalPaid)+'  |  Restante: '+formatCurrency(restante)
+                : 'Anticipo 50%: '+formatCurrency(anticipo)+'  |  Saldo 1 semana antes: '+formatCurrency(ev.totalPrice-anticipo),CX,y,{align:'center'});
         }
-        if(type==='nota'&&(ev.payments||[]).length>0){
+        if(pays.length){
             y+=8; doc.setFontSize(8); doc.setTextColor(...brown);
             const mi={'efectivo':'Efectivo','transferencia':'Transferencia','tarjeta':'Tarjeta'};
-            ev.payments.forEach(p=>{
-                doc.text(formatDate(p.date)+' - '+(mi[p.method]||p.method),LM+4,y);
-                doc.text(formatCurrency(p.amount),178,y,{align:'center'});
+            pays.forEach(p=>{
+                doc.text(formatDate(p.date)+' - '+(mi[p.method]||p.method||''),LM+4,y);
+                doc.text(formatCurrency(p.amount||0),RM,y,{align:'right'});
                 y+=4.5;
             });
             y+=2; doc.setFontSize(9); doc.setTextColor(...brownDark);
-            doc.text('Total pagado: '+formatCurrency(totalPaid)+' | Restante: '+formatCurrency(ev.totalPrice-totalPaid),CX,y,{align:'center'});
+            doc.text('Total pagado: '+formatCurrency(totalPaid)+'  |  Restante: '+formatCurrency(restante),CX,y,{align:'center'});
         }
 
-        // ====== "Merci !" in footer zone (between 2nd line ~216mm and bottom leaves ~234mm) ======
-        doc.setFontSize(26); doc.setTextColor(...brownDark);
-        doc.text('Merci !',CX,228,{align:'center'});
-        doc.setFontSize(9); doc.setTextColor(...brownLight);
-        doc.text('La Petite Parisienne  |  '+MY_PHONE_DISPLAY+'  |  WhatsApp',CX,236,{align:'center'});
+        // ====== PIED DE PAGE ======
+        const pages=doc.getNumberOfPages();
+        for(let i=1;i<=pages;i++){
+            doc.setPage(i);
+            if(i<pages){
+                doc.setFontSize(8); doc.setTextColor(...grey);
+                doc.text('Continúa en la siguiente página',CX,226,{align:'center'});
+            } else {
+                doc.setFontSize(26); doc.setTextColor(...brownDark);
+                doc.text('Merci !',CX,228,{align:'center'});
+                doc.setFontSize(9); doc.setTextColor(...brownLight);
+                doc.text('La Petite Parisienne  |  '+MY_PHONE_DISPLAY+'  |  WhatsApp',CX,236,{align:'center'});
+            }
+            // Folio (et numero de page) en tout petit, en haut a droite.
+            doc.setFontSize(6.5); doc.setTextColor(...grey);
+            doc.text(folio+(pages>1?'  ·  '+i+'/'+pages:''),RM,93,{align:'right'});
+        }
 
-        doc.save((type==='devis'?'Cotizacion':'NotaDeVenta')+'_'+ev.clientName.replace(/\s/g,'_')+'.pdf');
+        if(returnDoc) return doc;
+        const safeName=clientName.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'cliente';
+        doc.save((type==='devis'?'Cotizacion':'NotaDeVenta')+'_'+safeName+'.pdf');
     }
 
     // ==================== UTILITIES ====================
